@@ -55,20 +55,23 @@ def save_callback(sender, app_data, user_data):
     try:
         if name:
             print('name_input value：',name)
-            sql_name = session.query(Project).filter(Project.name == name).first()
-            print(sql_name)
-            if sql_name!=None:
-                popups('ffmpeg_no_stream_error',"任务名字重复，请重新输入！！")
-            else:
-                file_select()  #跳转上传页面
+            session.query(Project).filter(Project.name == name).first()
+            file_select()  #跳转上传页面
             global task_name
             task_name = name
-        else:
-            popups('empty_name_popups',"名字不能是空！！")
-            print("名字空值，不创建任务")
     except Exception as e:
         log.write(e)
 
+def select_sql_task_name(sender,app_data,user_data):
+    print(sender,app_data,user_data)
+    if app_data :
+        sql_name=session.query(Project).filter(Project.name == app_data).first()
+        if sql_name:
+            dpg.set_value('task_tip','存在重复名称，不能创建任务')
+        else:
+            dpg.set_value('task_tip','名称通过，可以创建任务')
+    else:
+        dpg.set_value('task_tip','名称不能是空，不能创建任务')
 
 #删除任务
 def _delete_task(sender, app_data, user_data):
@@ -113,9 +116,6 @@ def video_file_select_callback(sender, app_data):
     Primary_Window()
 
 
-
-
-
 #上传窗口弹出,不支持中文文件。0表示视频上传，1表示图像上传
 def file_select():
     with dpg.file_dialog(directory_selector=False, show=False, callback=video_file_select_callback, tag="video_file_dialog_tag"):
@@ -148,8 +148,13 @@ def Colorization():
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Chinese_Full)
     with dpg.window(label="Colorization Window",width=800,height=600,id='Colorization Window'):
         dpg.bind_font(font1) 
-        dpg.add_input_text(label="编辑任务名称", default_value="",tag="task_name_input")
-        dpg.add_button(label="创建任务",callback=save_callback)
+        with dpg.group(horizontal=True):
+            dpg.add_button(label="编辑创建任务",callback=save_callback)
+            dpg.add_input_text(label="", default_value="请输入任务名称",tag="task_name_input",callback=select_sql_task_name)
+        with dpg.group(horizontal=True):
+            dpg.add_text(default_value="检测提示：")
+            dpg.add_text(default_value='请输入任务名称',id="task_tip")
+
         with dpg.table(label='task_list',header_row=True, resizable=True, policy=dpg.mvTable_SizingStretchProp,
                    borders_outerH=True, borders_innerV=True, borders_innerH=True, borders_outerV=True ):
             dpg.add_table_column(label="任务列表")
@@ -179,13 +184,21 @@ def Primary_Window():
             with dpg.menu(label="工具"):
                 dpg.add_menu_item(label="视频转图像", callback=video_to_png)
                 dpg.add_menu_item(label="自动分镜头", callback=_log)
-        with dpg.child_window(label='all_frame_image',height=200,parent='Primary Window'):
+        with dpg.child_window(label='all_frame_image',height=500,parent='Primary Window'):
             dpg.add_text("全部帧图像")
-            width, height, channels, data = dpg.load_image("data\Somefile.png")
-            with dpg.texture_registry(show=True):
-                dpg.add_static_texture(width, height, data, tag="texture_tag")
-            dpg.add_image("texture_tag",width=170,height=140)
-            dpg.add_image("texture_tag",width=170,height=140)
+            with dpg.plot(label="Drag Lines/Points", height=400, width=-1):
+                dpg.add_plot_legend()
+                dpg.add_plot_axis(dpg.mvXAxis, label="时间",no_gridlines=True)
+                # dpg.add_plot_axis(dpg.mvYAxis, label="y")
+                dpg.add_drag_line(label="dline1", color=[255, 0, 0, 255],callback=_log)
+
+
+
+            # width, height, channels, data = dpg.load_image("data\Somefile.png")
+            # with dpg.texture_registry(show=True):
+            #     dpg.add_static_texture(width, height, data, tag="texture_tag")
+            # dpg.add_image("texture_tag",width=170,height=140)
+            # dpg.add_image("texture_tag",width=170,height=140)
         with dpg.child_window(label='child_frame_image',height=300,parent='Primary Window'):
             dpg.add_text("分镜头图像")    
     
