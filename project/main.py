@@ -56,10 +56,11 @@ def save_callback(sender, app_data, user_data):
         if name:
             print('name_input value：',name)
             sql_name = session.query(Project).filter(Project.name == name).first()
+            print(sql_name)
             if sql_name!=None:
                 popups('ffmpeg_no_stream_error',"任务名字重复，请重新输入！！")
             else:
-                file_select(issue_type=0)  #跳转上传页面,0表示视频
+                file_select()  #跳转上传页面
             global task_name
             task_name = name
         else:
@@ -116,14 +117,13 @@ def video_file_select_callback(sender, app_data):
 
 
 #上传窗口弹出,不支持中文文件。0表示视频上传，1表示图像上传
-def file_select(issue_type):
-    if issue_type==0:
-        with dpg.file_dialog(directory_selector=False, show=False, callback=video_file_select_callback, tag="video_file_dialog_tag"):
-            dpg.add_file_extension(".mp4", color=(0, 255, 0, 255))
-            dpg.add_file_extension(".ts", color=(0, 255, 0, 255))
-            dpg.add_file_extension(".avi", color=(0, 255, 0, 255))
-            dpg.add_file_extension(".mov", color=(0, 255, 0, 255))
-        dpg.configure_item("video_file_dialog_tag",show=True)
+def file_select():
+    with dpg.file_dialog(directory_selector=False, show=False, callback=video_file_select_callback, tag="video_file_dialog_tag"):
+        dpg.add_file_extension(".mp4", color=(0, 255, 0, 255))
+        dpg.add_file_extension(".ts", color=(0, 255, 0, 255))
+        dpg.add_file_extension(".avi", color=(0, 255, 0, 255))
+        dpg.add_file_extension(".mov", color=(0, 255, 0, 255))
+    dpg.configure_item("video_file_dialog_tag",show=True)
    
 
 #已经创建任务回调跳转
@@ -287,7 +287,7 @@ def video_to_png():
             dpg.add_progress_bar(label="Progress Bar", default_value=78.00, overlay="78.00%",tag='vid_to_png_progress',width=200)
             dpg.add_text(label="Progress Bar")
             
-        # res = os.system(video_cmd)
+        res = os.system(video_cmd)
         # all_phone_num = info.frame_max_index #视频一共几帧
         
         log.write(res)
