@@ -180,7 +180,7 @@ def delete_task_files(file_path):
     for i in os.listdir(file_path):
         file_data = os.path.join(file_path,i)
         print(file_data)
-        if os.path.isfile(file_data) == True:#os.path.isfile判断是否为文件,如果是文件,就删除.如果是文件夹.递归给自己.
+        if os.path.isfile(file_data) == True:
             os.remove(file_data)
         else:
             delete_task_files(file_data)
@@ -225,27 +225,28 @@ def system_setup_window():
 def project_detail_Window(project_name):
     # 临时隐藏project_management_window
     dpg.configure_item("project_management_window", show=False)
-    with dpg.window(
-        label=f"Project <{project_name}> Details",
-        width=800, height=800, id='video_tools_window'):
+    with dpg.window(label=f"Project <{project_name}> Details",width=1150, height=800, id='video_tools_window',no_move=True):
         # 绑定中文字体
         dpg.bind_font(default_font)
         with dpg.menu_bar():
             with dpg.menu(label="工具"):
                 dpg.add_menu_item(label="视频转序列", callback=video2picture, user_data=project_name)
                 dpg.add_menu_item(label="分镜头检测", callback=_log)
-        with dpg.child_window(label='all_frame_image',height=500,parent='video_tools_window'):
-            dpg.add_text("全部帧图像")
-            with dpg.plot(label="Drag Lines/Points", height=400, width=-1):
-                dpg.add_plot_legend()
-                dpg.add_plot_axis(dpg.mvXAxis, label="时间",no_gridlines=True)
-                # dpg.add_plot_axis(dpg.mvYAxis, label="y")
-                dpg.add_drag_line(label="dline1", color=[255, 0, 0, 255],callback=_log)
-            # width, height, channels, data = dpg.load_image("data\Somefile.png")
-            # with dpg.texture_registry(show=True):
-            #     dpg.add_static_texture(width, height, data, tag="texture_tag")
-            # dpg.add_image("texture_tag",width=170,height=140)
-            # dpg.add_image("texture_tag",width=170,height=140)
+            with dpg.menu(label="导出"):
+                dpg.add_menu_item(label="导出完整视频",callback=_log)
+        with dpg.child_window(label='all_frame_image',height=400,parent='video_tools_window'):
+            with dpg.group(horizontal=True,width=500):
+                with dpg.child_window(width=560,height=400,autosize_y=True):
+                    dpg.add_text('视频区')
+                with dpg.child_window(width=560,height=400,autosize_y=True):
+                    dpg.add_text('图像区')
+            # dpg.add_text("全部帧图像")
+            # with dpg.plot(label="Drag Lines/Points", height=400, width=-1):
+            #     dpg.add_plot_legend()
+            #     dpg.add_plot_axis(dpg.mvXAxis, label="时间",no_gridlines=True)
+            #     dpg.add_plot_axis(dpg.mvYAxis, label="y")
+            #     dpg.add_drag_line(label="dline1", color=[255, 0, 0, 255],callback=_log)
+               
         with dpg.child_window(label='child_frame_image',height=300,parent='video_tools_window'):
             dpg.add_text("分镜头图像")    
     
@@ -303,6 +304,39 @@ def save_shortcut(sender,app_data,user_app):
     # print(save_shortcut_info)
 
 
+#导出视频
+def Synthetic_video():
+    with dpg.window(label="Synthetic_video",width=500,height=350,id='Synthetic_video'):
+        dpg.bind_font(default_font)
+        with dpg.child_window(label='radio group',height=300,parent='Synthetic_video'):
+            with dpg.group(horizontal=True):
+                dpg.add_text("作品名称")
+                dpg.add_input_text(default_value='xxxxx')
+            with dpg.group(horizontal=True):
+                dpg.add_text('分辨率')
+                dpg.add_radio_button(("480p","720p","1080p",'2k','4k'), default_value="1080p",callback=_log, horizontal=True)
+            with dpg.group(horizontal=True):
+                dpg.add_text('码率')
+                dpg.add_radio_button(['更低','推荐','更高'], default_value='推荐',callback=_log, horizontal=True)
+            with dpg.group(horizontal=True):
+                dpg.add_text('编码')
+                dpg.add_radio_button(['H.264','HEVC'], default_value='H.264',callback=_log, horizontal=True)
+            with dpg.group(horizontal=True):
+                dpg.add_text('格式')
+                dpg.add_radio_button(['mp4'], default_value='mp4',callback=_log, horizontal=True)
+            with dpg.group(horizontal=True):
+                dpg.add_text('帧率fps')
+                dpg.add_radio_button([25,30,60], default_value=30,callback=_log, horizontal=True)
+            
+            # with dpg.group(horizontal=True):
+            #     dpg.add_text('编码')
+            #     dpg.add_button(label="上传",callback=lambda: dpg.show_item("file_dialog_tag"))
+            #     with dpg.group(horizontal=True):
+            #         dpg.add_text('文件地址:')
+            #         dpg.add_text('空',id='file_path_name')
+           
+            dpg.add_button(label='导出',id='final_submit',callback=_log )
+
 if __name__=='__main__':
     # 初始化dear pygui
     dpg.create_context()
@@ -311,7 +345,7 @@ if __name__=='__main__':
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Default)
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Chinese_Simplified_Common)
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Chinese_Full)
-    dpg.create_viewport(title='Colorization_sys Window', width=900, height=800)
+    dpg.create_viewport(title='Colorization_sys Window', width=1100, height=900)
     dpg.setup_dearpygui()
     # 上色平台功能入口
     system_setup_window()
