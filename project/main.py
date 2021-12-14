@@ -1,7 +1,11 @@
 import os, sys
 import dearpygui.dearpygui as dpg
 import subprocess
-import ffmpeg
+import ffmpeg,threading
+
+frame_g_max =0
+frame_g_path = ''
+frame_state = 0
 
 # 获取项目的root路径
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,8 +32,29 @@ def _log(sender, app_data, user_data):
 
 # 提示窗
 def prompt_box(lable,text):
-    with dpg.window(label=lable, show=True, no_title_bar=True, id = lable):
+    with dpg.window(no_resize=True,label=lable, show=True, no_title_bar=True, id = lable,pos=[200,300],width=240,height=150):
         dpg.add_text(text)
+        dpg.add_button(
+            label="确定", width=75, pos=[120,120],
+            callback=lambda: dpg.configure_item(lable, show=False))
+
+
+# 帮助小问号（？）
+def _help(message):
+    last_item = dpg.last_item()
+    group = dpg.add_group(horizontal=True)
+    dpg.move_item(last_item, parent=group)
+    dpg.capture_next_item(lambda s: dpg.move_item(s, parent=group))
+    t = dpg.add_text("(?)", color=[200, 255, 0])
+    with dpg.tooltip(t):
+        dpg.add_text(message)
+
+
+#等待提示窗
+def wait_prompt_box(lable,text):
+    with dpg.window(no_resize=True,label=lable, show=True, no_title_bar=True, id = lable,pos=[200,300],width=240,height=150):
+        dpg.add_text(text)
+
         dpg.add_button(
             label="确定", width=75, pos=[120,120],
             callback=lambda: dpg.configure_item(lable, show=False))
@@ -54,6 +79,7 @@ def video_resolution(video_path):
 
 # ffmpeg提取视频每一帧保存为图像
 def video2picture(sender, app_data, user_data):
+    dpg.configure_item("video_progress_bar",show=True)
     res_project = query_project_by_name(user_data)
     video_stream = video_resolution(res_project.video_path)
     # print(video_stream)
@@ -61,23 +87,21 @@ def video2picture(sender, app_data, user_data):
     if video_stream:
         frame_max_index = int(video_stream['nb_frames'])
         video_fps = video_stream['avg_frame_rate'].split('/')[0]
+        global frame_g_max
+        frame_g_max = frame_max_index
+        global frame_g_path
+        frame_g_path = res_project.frame_path
         # 创建存储路径
         create_folder(res_project.project_path)
         create_folder(res_project.frame_path)
-        # 视频转图片
-        with dpg.window(label='Video Progress Bar', show=True, no_title_bar=True, id='video_progress_bar', pos=[200,150], no_resize=True, no_move=True):
-            dpg.add_text('当前转换进度')
-            dpg.add_progress_bar(label="Progress Bar", default_value=78.00,overlay="78.00%", tag='vid_to_png_progress', width=200)
-            dpg.add_button(label="确定",callback=lambda: dpg.configure_item("video_progress_bar",show=False))
+        #音频
         # audio_out_path = os.path.join(res_project.project_path,res_project.name)  
         # audio_cmd= f'ffmpeg -i {res_project.video_path} -vn -y -acodec copy {audio_out_path}.aac'
         # os.system(audio_cmd)
-
-        command = f"ffmpeg -i {res_project.video_path} -f image2 -vf fps=fps={res_project.video_fps} -qscale:v 2 {res_project.frame_path}/%06d.png"
-        print(command)
-        # Progress_Bar(command, shell=True)
-        print(os.popen(command))
-
+        # 视频转图片
+        video_cmd = f"ffmpeg -i {res_project.video_path} -f image2 -vf fps=fps={res_project.video_fps} -qscale:v 2 {res_project.frame_path}/%06d.png"
+        # os.system(video_cmd)
+        Progress_Bar(video_cmd)
         # 更新项目
         update_project_by_json(res_project, {
             "video_fps": video_fps,
@@ -85,22 +109,26 @@ def video2picture(sender, app_data, user_data):
             "frame_max_index": frame_max_index
         })
 
-#进度条测试
-def Progress_Bar(cmd, shell=False):
-    """
-    开启子进程，执行对应指令，控制台打印执行过程，然后返回子进程执行的状态码和执行返回的数据
-    :param cmd: 子进程命令
-    :param shell: 是否开启shell
-    :return: 子进程状态码和执行结果
-    """
-    subp = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding="utf-8")
-    subp.wait(2)
-    if subp.poll() == 0:
-        print(subp.communicate()[1])
-        # 清空缓存
-        sys.stdout.flush()
-        sys.stderr.flush()
-    
+
+def Progress_Bar(command):
+    '''
+    进度条,循环检查文件夹下面的图像数量，是否等于最大帧数.
+    '''
+    print('进入子线程 进度条')
+    p = subprocess.Popen(command,shell=False ,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding="utf-8")
+    while p.poll() is None:
+        line = p.stdout.readline()
+        line = line.strip()
+        if line:
+            print('Subprogram output: {}'.format(line))
+            dpg.set_value('ffmpeg_out',p.communicate()[1])
+        if p.returncode == 0:
+            print('Subprogram success')
+        else:
+            print('Subprogram failed')
+       
+
+
 
 
 #导入图像回调
@@ -186,6 +214,7 @@ def delete_task_files(file_path):
             delete_task_files(file_data)
     os.rmdir(file_path)
 
+
 # 创建首页窗口
 def system_setup_window():
     with dpg.window(label="Project Management", width=800, height=600, id='project_management_window',no_move=True,no_resize=True):
@@ -195,9 +224,11 @@ def system_setup_window():
         dpg.add_text("新建项目名称")
         with dpg.group(horizontal=True):
             dpg.add_input_text(
-                id="input_name_widget",callback=check_project, user_data="check_name_widget")
+                id="input_name_widget",callback=check_project, user_data="check_name_widget",hint="输入名称")
             dpg.add_button(label="创建项目", callback=create_project)
-        dpg.add_text("", tag="check_name_widget")
+        with dpg.group(horizontal=True):
+            dpg.add_text('检查结果：')
+            dpg.add_text("空", tag="check_name_widget")
         with dpg.file_dialog(
             directory_selector=False, show=False,
             callback=select_video, tag="select_video_widget"):
@@ -221,11 +252,11 @@ def system_setup_window():
                         user_data=f"show_project_widget{i}", callback=delete_one_project)
 
 
-# 项目明细窗口
+# 项目明细窗口/视频数据窗口
 def project_detail_Window(project_name):
     # 临时隐藏project_management_window
     dpg.configure_item("project_management_window", show=False)
-    with dpg.window(label=f"Project <{project_name}> Details",width=1150, height=800, id='video_tools_window',no_move=True):
+    with dpg.window(label=f"Project <{project_name}> Details",width=1150, height=800, tag='video_tools_window',no_resize=True,min_size=[1150,800]):
         # 绑定中文字体
         dpg.bind_font(default_font)
         with dpg.menu_bar():
@@ -233,47 +264,67 @@ def project_detail_Window(project_name):
                 dpg.add_menu_item(label="视频转序列", callback=video2picture, user_data=project_name)
                 dpg.add_menu_item(label="分镜头检测", callback=_log)
             with dpg.menu(label="导出"):
-                dpg.add_menu_item(label="导出完整视频",callback=_log)
-        with dpg.child_window(label='all_frame_image',height=400,parent='video_tools_window'):
-            with dpg.group(horizontal=True,width=500):
-                with dpg.child_window(width=560,height=400,autosize_y=True):
-                    dpg.add_text('视频区')
-                with dpg.child_window(width=560,height=400,autosize_y=True):
-                    dpg.add_text('图像区')
-            # dpg.add_text("全部帧图像")
-            # with dpg.plot(label="Drag Lines/Points", height=400, width=-1):
-            #     dpg.add_plot_legend()
-            #     dpg.add_plot_axis(dpg.mvXAxis, label="时间",no_gridlines=True)
-            #     dpg.add_plot_axis(dpg.mvYAxis, label="y")
-            #     dpg.add_drag_line(label="dline1", color=[255, 0, 0, 255],callback=_log)
-               
-        with dpg.child_window(label='child_frame_image',height=300,parent='video_tools_window'):
-            dpg.add_text("分镜头图像")    
-    
-        with dpg.file_dialog(directory_selector=False, show=False, callback=image_file_select_callback, tag="file_dialog_tag"):
-            dpg.add_file_extension(".png", color=(255, 255, 0, 255))
-            dpg.add_file_extension(".jpg", color=(255, 0, 255, 255))
-
-        with dpg.child_window(label='radio group',height=300,parent='video_tools_window'):
-            with dpg.group(horizontal=True):
-                dpg.add_text('选择处理分镜头')
-                dpg.add_combo([1],height_mode=dpg.mvComboHeight_Small )
-            with dpg.group(horizontal=True):
-                dpg.add_text('是否胶质')
-                dpg.add_radio_button(("是","否"), default_value="是",callback=_log, horizontal=True,id='colloidal')
-            with dpg.group(horizontal=True):
-                dpg.add_text('噪音等级')
-                dpg.add_radio_button([0,1,2,3,4,5], default_value=0,callback=_log, horizontal=True,id='noise_level')
-            with dpg.group(horizontal=True):
-                dpg.add_text('点击上传参考帧')
-                dpg.add_button(label="上传",callback=lambda: dpg.show_item("file_dialog_tag"))
+                dpg.add_menu_item(label="导出完整视频",callback=export)
+        with dpg.group(horizontal=True):
+            with dpg.child_window(width=565,height=270):
+                dpg.add_text('视频区')
+                # 记得实现 播放视频功能还没写先空这
+            with dpg.child_window(width=565,height=270):
+                dpg.add_text('影片噪音选项')
                 with dpg.group(horizontal=True):
-                    dpg.add_text('文件地址:')
-                    dpg.add_text('空',id='file_path_name')
-            with dpg.group(horizontal=True):
-                dpg.add_text('确认是否满足上色条件')
-                dpg.add_radio_button(("是","否"), default_value=0,callback=_log, horizontal=True,id='colorize_state')
-            dpg.add_button(label='提交',id='final_submit',callback=save_shortcut)
+                    dpg.add_text('是否胶质:',pos=[40,40])
+                    dpg.add_radio_button(("是","否"), default_value="是",tag='colloidal',callback=_log, horizontal=True,id='colloidal',pos=[140,40])
+                with dpg.group(horizontal=True):
+                    dpg.add_text('噪音等级:',pos=[40,70])
+                    _help("等级越高，噪音越大。")
+                    dpg.add_radio_button([0,1,2,3,4,5], default_value=0,tag='noise_level',callback=_log, horizontal=True,id='noise_level',pos=[140,70])
+                    
+        with dpg.child_window(height=450,autosize_x=True):
+            dpg.add_text("视频帧")
+            with dpg.plot(label="Drag Lines/Points", height=400, width=-1,tag='image_tag'):
+                dpg.add_plot_legend()
+                dpg.add_plot_axis(dpg.mvXAxis, label="时间")
+                dpg.add_plot_axis(dpg.mvYAxis, label="y")
+                dpg.add_drag_line(label="dline", color=[255, 0, 0, 255],callback=_log)
+                project_info = query_project_by_name(project_name)
+              
+
+                # for i in os.listdir(project_info.frame_path):
+                    # print(i)
+                    # dpg.load_image ('image_tag')
+                    # print(project_info.frame_path)
+
+        #等待界面
+        with dpg.window(label='Video Progress Bar', show=False, no_title_bar=True, id='video_progress_bar', pos=[200,150], no_resize=True,width=220,height=140):
+            dpg.add_text('请耐心等待')
+            # dpg.add_progress_bar(label="Progress Bar",default_value=0.00 ,overlay="0.00%", tag='vid_to_png_progress', width=200)
+            dpg.add_loading_indicator(pos=[110,75])
+            dpg.add_button(label="确定",pos=[150,100],callback=lambda: dpg.configure_item("video_progress_bar",show=False))
+               
+        
+
+        # with dpg.child_window(label='child_frame_image',height=300,parent='video_tools_window'):
+        #     dpg.add_text("分镜头图像")    
+    
+        #  with dpg.file_dialog(directory_selector=False, show=False, callback=image_file_select_callback, tag="file_dialog_tag"):
+        #         dpg.add_file_extension(".png", color=(255, 255, 0, 255))
+        #         dpg.add_file_extension(".jpg", color=(255, 0, 255, 255))
+
+        #     with dpg.child_window(height=300,parent='video_tools_window'):
+        #         with dpg.group(horizontal=True):
+        #             dpg.add_text('选择处理分镜头')
+        #             dpg.add_combo([1],height_mode=dpg.mvComboHeight_Small )
+        #         with dpg.group(horizontal=True):
+        #             dpg.add_text('点击上传参考帧')
+        #             dpg.add_button(label="上传",callback=lambda: dpg.show_item("file_dialog_tag"))
+        #             with dpg.group(horizontal=True):
+        #                 dpg.add_text('文件地址:')
+        #                 dpg.add_text('空',id='file_path_name')
+        #         with dpg.group(horizontal=True):
+        #             dpg.add_text('确认是否满足上色条件')
+        #             dpg.add_radio_button(("是","否"), default_value=0,callback=_log, horizontal=True,id='colorize_state')
+        #         dpg.add_button(label='提交',id='final_submit',callback=save_shortcut)
+
 
 
 #保存分镜头数据
@@ -304,14 +355,20 @@ def save_shortcut(sender,app_data,user_app):
     # print(save_shortcut_info)
 
 
+
+#导出回调函数
+def export():
+    dpg.configure_item("Synthetic_video",show=True)    
+
+
 #导出视频
 def Synthetic_video():
-    with dpg.window(label="Synthetic_video",width=500,height=350,id='Synthetic_video'):
+    with dpg.window(label="Synthetic_video",width=500,height=350,id='Synthetic_video',show=False,pos=[350,280]):
         dpg.bind_font(default_font)
         with dpg.child_window(label='radio group',height=300,parent='Synthetic_video'):
             with dpg.group(horizontal=True):
                 dpg.add_text("作品名称")
-                dpg.add_input_text(default_value='xxxxx')
+                dpg.add_input_text(hint='测试作品名')
             with dpg.group(horizontal=True):
                 dpg.add_text('分辨率')
                 dpg.add_radio_button(("480p","720p","1080p",'2k','4k'), default_value="1080p",callback=_log, horizontal=True)
@@ -335,9 +392,12 @@ def Synthetic_video():
             #         dpg.add_text('文件地址:')
             #         dpg.add_text('空',id='file_path_name')
            
-            dpg.add_button(label='导出',id='final_submit',callback=_log )
+            dpg.add_button(label='导出',id='final_submit',callback=lambda:dpg.configure_item("Synthetic_video",show=False) )
+
+
 
 if __name__=='__main__':
+    
     # 初始化dear pygui
     dpg.create_context()
     with dpg.font_registry(): # 注册字体
@@ -345,12 +405,18 @@ if __name__=='__main__':
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Default)
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Chinese_Simplified_Common)
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Chinese_Full)
-    dpg.create_viewport(title='Colorization_sys Window', width=1100, height=900)
+    dpg.create_viewport(title='Colorization_sys Window', width=1230, height=900,min_width=1200)
     dpg.setup_dearpygui()
     # 上色平台功能入口
     system_setup_window()
     # 渲染数据
     refresh_project_list()
+    #  导出视频页面
+    Synthetic_video()
+
+     
+    
     dpg.show_viewport()
     dpg.start_dearpygui()
     dpg.destroy_context()
+    
