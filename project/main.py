@@ -1,11 +1,10 @@
 import os, sys
 import dearpygui.dearpygui as dpg
 import subprocess
-import ffmpeg,threading
+import ffmpeg,threading,time
+import cv2
+import numpy as np
 
-frame_g_max =0
-frame_g_path = ''
-frame_state = 0
 
 # 获取项目的root路径
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -98,6 +97,7 @@ def video2picture(sender, app_data, user_data):
         # os.system(audio_cmd)
         # 视频转图片
         video_cmd = f"ffmpeg -i {res_project.video_path} -f image2 -vf fps=fps={res_project.video_fps} -qscale:v 2 {res_project.frame_path}/%06d.png"
+        
         t1 = threading.Thread(target=Progress_Bar2,args=(res_project.frame_path,frame_max_index))
         t1.start()
         os.system(video_cmd)
@@ -120,7 +120,7 @@ def Progress_Bar2(path,frame):
         # print('pornum:',pornum)
         res = str(pornum)+'%'
         dpg.configure_item('vid_to_png_progress',overlay=str(res))
-    
+    dpg.configure_item("video_progress_bar",show=False)
 
 
 
@@ -255,13 +255,14 @@ def project_detail_Window(project_name):
         with dpg.menu_bar():
             with dpg.menu(label="工具"):
                 dpg.add_menu_item(label="视频转序列", callback=video2picture, user_data=project_name)
-                dpg.add_menu_item(label="分镜头检测", callback=_log) #记得实现 机器分镜头功能
+                dpg.add_menu_item(label="分镜头检测", callback=_log) # 记得实现 机器分镜头功能
             with dpg.menu(label="导出"):
                 dpg.add_menu_item(label="导出完整视频",callback=export)
         with dpg.group(horizontal=True):
             with dpg.child_window(width=565,height=270):
-                dpg.add_text('视频区')
-                # 记得实现 播放视频功能还没写先空这
+                dpg.add_text('空格暂停，按Q退出')
+                dpg.add_button(label='查看视频',user_data=project_name,callback=video_play)
+                # 记得实现 已经实现比较拉跨，等待以后有好的视频插件
             with dpg.child_window(width=565,height=270):
                 dpg.add_text('影片噪音选项')
                 with dpg.group(horizontal=True):
@@ -273,14 +274,14 @@ def project_detail_Window(project_name):
                     dpg.add_radio_button([0,1,2,3,4,5], default_value=0,tag='noise_level',callback=_log, horizontal=True,id='noise_level',pos=[140,70])
                     
         with dpg.child_window(height=450,autosize_x=True):
-            dpg.add_text("视频帧")
+            dpg.add_text("图像")
             with dpg.plot(label="Drag Lines/Points", height=400, width=-1,tag='image_tag'):
                 dpg.add_plot_legend()
                 dpg.add_plot_axis(dpg.mvXAxis, label="时间")
-                dpg.add_plot_axis(dpg.mvYAxis, label="y")
                 dpg.add_drag_line(label="dline", color=[255, 0, 0, 255],callback=_log)
                 project_info = query_project_by_name(project_name)
-              
+                dpg.add_plot_axis(dpg.mvYAxis, label="y")
+                dpg.load_image()
 
                 # for i in os.listdir(project_info.frame_path):
                     # print(i)
@@ -288,13 +289,10 @@ def project_detail_Window(project_name):
                     # print(project_info.frame_path)
 
         #等待界面
-        with dpg.window(label='Video Progress Bar', show=False, no_title_bar=True, id='video_progress_bar', pos=[200,150], no_resize=True,width=220,height=140):
+        with dpg.window(label='Video Progress Bar', show=False, no_title_bar=True, id='video_progress_bar', pos=[200,150], no_resize=True,width=220,height=70):
             dpg.add_text('请耐心等待')
-            dpg.add_progress_bar(label="Progress Bar",default_value=0.00 ,overlay="0.00%", tag='vid_to_png_progress', width=200)
-            # dpg.add_loading_indicator(pos=[110,75])
-            dpg.add_button(label="确定",pos=[150,100],callback=lambda: dpg.configure_item("video_progress_bar",show=False))
-               
-        
+            dpg.add_progress_bar(label="Progress Bar",default_value=0.00 ,overlay="0.00%", tag='vid_to_png_progress')
+          
 
         # with dpg.child_window(label='child_frame_image',height=300,parent='video_tools_window'):
         #     dpg.add_text("分镜头图像")    
@@ -318,6 +316,58 @@ def project_detail_Window(project_name):
         #             dpg.add_radio_button(("是","否"), default_value=0,callback=_log, horizontal=True,id='colorize_state')
         #         dpg.add_button(label='提交',id='final_submit',callback=save_shortcut)
 
+
+def nothing(emp):
+    pass
+
+
+#播放视频
+def video_play(send,app_data,user_data):
+    res_project = query_project_by_name(user_data)
+    #设置窗口名称
+    cv2.namedWindow('frame')
+    cap = cv2.VideoCapture(res_project.video_path)  # 读取文件
+    start_time = time.time()
+    #用于记录帧数
+    counter = 0
+    # 获取视频宽度
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    # 获取视频高度
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    #视频平均帧率
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    # 获取视频帧数
+    frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    loop_flag = 0
+    pos = 0
+    # 新建一个滑动条
+    # cv2.createTrackbar('frame', 'frame', 0, frames, nothing)
+    while (True):
+        # if loop_flag == pos:
+        #     loop_flag = loop_flag + 1
+        #     cv2.setTrackbarPos('frame', 'frame', loop_flag)
+        # else:
+        #     pos = cv2.getTrackbarPos('frame', 'frame')
+        #     loop_flag = pos
+        #     cap.set(cv2.CAP_PROP_POS_FRAMES, pos)
+        ret, frame = cap.read()
+        # 键盘输入空格暂停，输入q退出
+        key = cv2.waitKey(1) & 0xff
+        if key == ord(" "):
+            cv2.waitKey(0)
+        if key == ord("q"):
+            break
+        counter += 1  # 计算帧数
+        if (time.time() - start_time) != 0:  # 实时显示帧数
+            cv2.putText(frame, "FPS {0}".format(float('%.1f' % (counter / (time.time() - start_time)))), (500, 50),cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255),3)
+            src = cv2.resize(frame, (frame_width // 2, frame_height // 2), interpolation=cv2.INTER_CUBIC)  # 窗口大小
+            cv2.imshow('frame', src)
+            # print("FPS: ", counter / (time.time() - start_time))
+            counter = 0
+            start_time = time.time()
+        # time.sleep(1 / fps)  # 按原帧率播放
+    # cap.release()
+    cv2.destroyAllWindows()
 
 
 #保存分镜头数据
@@ -346,7 +396,6 @@ def save_shortcut(sender,app_data,user_app):
     # except Exception as e:
     #     print(e)
     # print(save_shortcut_info)
-
 
 
 #导出回调函数
@@ -385,7 +434,7 @@ def Synthetic_video():
             #         dpg.add_text('文件地址:')
             #         dpg.add_text('空',id='file_path_name')
            
-            dpg.add_button(label='导出',id='final_submit',callback=lambda:dpg.configure_item("Synthetic_video",show=False) )
+            dpg.add_button(label='关闭',callback=lambda:dpg.configure_item("Synthetic_video",show=False))
 
 
 
