@@ -24,6 +24,8 @@ from utils.logger import logger
 from utils.base import create_folder
 
 
+
+
 #测试回调，每一个按钮在获取不到值的时候，设置 callback=_log 查看打印
 def _log(sender, app_data, user_data):
     logger.info(
@@ -87,10 +89,6 @@ def video2picture(sender, app_data, user_data):
     if video_stream:
         frame_max_index = int(video_stream['nb_frames'])
         video_fps = video_stream['avg_frame_rate'].split('/')[0]
-        global frame_g_max
-        frame_g_max = frame_max_index
-        global frame_g_path
-        frame_g_path = res_project.frame_path
         # 创建存储路径
         create_folder(res_project.project_path)
         create_folder(res_project.frame_path)
@@ -100,8 +98,9 @@ def video2picture(sender, app_data, user_data):
         # os.system(audio_cmd)
         # 视频转图片
         video_cmd = f"ffmpeg -i {res_project.video_path} -f image2 -vf fps=fps={res_project.video_fps} -qscale:v 2 {res_project.frame_path}/%06d.png"
-        # os.system(video_cmd)
-        Progress_Bar(video_cmd)
+        t1 = threading.Thread(target=Progress_Bar2,args=(res_project.frame_path,frame_max_index))
+        t1.start()
+        os.system(video_cmd)
         # 更新项目
         update_project_by_json(res_project, {
             "video_fps": video_fps,
@@ -110,24 +109,18 @@ def video2picture(sender, app_data, user_data):
         })
 
 
-def Progress_Bar(command):
-    '''
-    进度条,循环检查文件夹下面的图像数量，是否等于最大帧数.
-    '''
-    print('进入子线程 进度条')
-    p = subprocess.Popen(command,shell=False ,stdout=subprocess.PIPE,stderr=subprocess.PIPE,encoding="utf-8")
-    while p.poll() is None:
-        line = p.stdout.readline()
-        line = line.strip()
-        if line:
-            print('Subprogram output: {}'.format(line))
-            dpg.set_value('ffmpeg_out',p.communicate()[1])
-        if p.returncode == 0:
-            print('Subprogram success')
-        else:
-            print('Subprogram failed')
-       
 
+def Progress_Bar2(path,frame):
+    print('进入进度条线程')
+    local_frames=0
+    while local_frames < frame:
+        local_frames = len(os.listdir(path))#获得本地帧数目
+        # print("local_frames:",local_frames)
+        pornum = round((local_frames/frame),4)*100   #当前图片/所有帧数
+        # print('pornum:',pornum)
+        res = str(pornum)+'%'
+        dpg.configure_item('vid_to_png_progress',overlay=str(res))
+    
 
 
 
@@ -262,7 +255,7 @@ def project_detail_Window(project_name):
         with dpg.menu_bar():
             with dpg.menu(label="工具"):
                 dpg.add_menu_item(label="视频转序列", callback=video2picture, user_data=project_name)
-                dpg.add_menu_item(label="分镜头检测", callback=_log)
+                dpg.add_menu_item(label="分镜头检测", callback=_log) #记得实现 机器分镜头功能
             with dpg.menu(label="导出"):
                 dpg.add_menu_item(label="导出完整视频",callback=export)
         with dpg.group(horizontal=True):
@@ -297,8 +290,8 @@ def project_detail_Window(project_name):
         #等待界面
         with dpg.window(label='Video Progress Bar', show=False, no_title_bar=True, id='video_progress_bar', pos=[200,150], no_resize=True,width=220,height=140):
             dpg.add_text('请耐心等待')
-            # dpg.add_progress_bar(label="Progress Bar",default_value=0.00 ,overlay="0.00%", tag='vid_to_png_progress', width=200)
-            dpg.add_loading_indicator(pos=[110,75])
+            dpg.add_progress_bar(label="Progress Bar",default_value=0.00 ,overlay="0.00%", tag='vid_to_png_progress', width=200)
+            # dpg.add_loading_indicator(pos=[110,75])
             dpg.add_button(label="确定",pos=[150,100],callback=lambda: dpg.configure_item("video_progress_bar",show=False))
                
         
@@ -413,9 +406,6 @@ if __name__=='__main__':
     refresh_project_list()
     #  导出视频页面
     Synthetic_video()
-
-     
-    
     dpg.show_viewport()
     dpg.start_dearpygui()
     dpg.destroy_context()
