@@ -14,6 +14,11 @@ def create_project_by_json(data_dict):
     session.add(new_project)
     session.commit()
 
+def create_shortcut_by_json(data_dict):
+    new_project = Shortcut()
+    set_field(new_project, data_dict)
+    session.add(new_project)
+    session.commit()
 
 def query_all_projects():
     return session.query(Project).order_by(
@@ -23,6 +28,11 @@ def query_all_projects():
 def query_project_by_name(name):
     return session.query(Project).filter(
         Project.name==name).first()
+
+
+def query_shortcut_by_name_and_pid(name,pid):
+    return session.query(Shortcut).filter(
+        Shortcut.name==name,Shortcut.project_id==pid).first()
 
 
 def query_project_by_id(id):
