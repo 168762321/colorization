@@ -49,6 +49,13 @@ def delete_invalid_porject(project_id):
         session.commit()
  
 
+def create_shortcut_by_json(data_dict):
+    new_shortcut = Shortcut()
+    set_field(new_shortcut, data_dict)
+    session.add(new_shortcut)
+    session.commit()
+
+
 def query_shortcut_by_project_id(project_id):
     return session.query(Shortcut).filter(
         Shortcut.project_id==project_id).all()

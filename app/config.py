@@ -7,4 +7,3 @@ db_name = "colorization_sys"
 engine = create_engine(
     f"mysql+pymysql://{user_pwd}@{host_port}/{db_name}?charset=utf8")
 CN_FONT = "sources/fonts/AdobeKaitiStd-Regular.otf"
-DEFAULT_PATH = "/media/jimmy/Elsa"
