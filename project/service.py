@@ -62,3 +62,5 @@ def delete_invalid_porject(project_id):
 def query_shortcut_by_project_id(project_id):
     return session.query(Shortcut).filter(
         Shortcut.project_id==project_id).all()
+
+

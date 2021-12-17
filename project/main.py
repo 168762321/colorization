@@ -23,7 +23,7 @@ from service import (
 from config import CN_FONT
 from utils.logger import logger
 from utils.base import create_folder
-
+from utils.detector import find_scene_frames
 
 
 
@@ -33,13 +33,14 @@ def _log(sender, app_data, user_data):
         f"sender: {sender}, \t app_data: {app_data}, \t user_data: {user_data}")
 
 
-# 提示窗
-def prompt_box(lable,text):
-    with dpg.window(no_resize=True,label=lable, show=True, no_title_bar=True, id = lable,pos=[200,300],width=240,height=150):
+# s、提示窗
+def prompt_box(tag, text):
+    with dpg.window(no_resize=True, show=True, no_title_bar=True,
+             tag=tag, pos=[200,300], width=240, height=150):
         dpg.add_text(text)
         dpg.add_button(
             label="确定", width=75, pos=[120,120],
-            callback=lambda: dpg.configure_item(lable, show=False))
+            callback=lambda: dpg.delete_item(tag))
 
 
 # 帮助小问号（？）
@@ -71,9 +72,9 @@ def video_resolution(video_path):
     return video_stream
 
 
-# ffmpeg提取视频每一帧保存为图像
-def video2picture(sender, app_data, user_data):
-    dpg.configure_item("video_progress_bar",show=True)
+#ffmpeg提取视频每一帧保存为图像
+def video_convert_picture_callback(sender, app_data, user_data):
+    dpg.configure_item("video_progress_bar", show=True)
     res_project = query_project_by_name(user_data)
     video_stream = video_resolution(res_project.video_path)
     # print(video_stream)
@@ -89,11 +90,22 @@ def video2picture(sender, app_data, user_data):
         # audio_cmd= f'ffmpeg -i {res_project.video_path} -vn -y -acodec copy {audio_out_path}.aac'
         # os.system(audio_cmd)
         # 视频转图片
-        video_cmd = f"ffmpeg -i {res_project.video_path} -f image2 -vf fps=fps={res_project.video_fps} -qscale:v 2 {res_project.frame_path}/%06d.png"
-        
-        t1 = threading.Thread(target=Progress_Bar2,args=(res_project.frame_path,frame_max_index))
-        t1.start()
-        os.system(video_cmd)
+        command = f"ffmpeg -i '{res_project.video_path}' '{res_project.frame_path}/%d.png'"
+        process = subprocess.Popen(command, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, universal_newlines=True, shell=True)
+        for line in process.stdout:
+            # 正则表达式更好 **
+            cur_frame_index = 0
+            if "frame=" in line:
+                cur_frame_index = int(((line.split("frame=")[1]).split("fps=")[0]).strip())
+            # 更新进度条
+            if cur_frame_index < frame_max_index:
+                cur_status = cur_frame_index // (int(frame_max_index / 100))
+                process_value = 99 if cur_status > 99 else cur_status
+                dpg.configure_item('video_cur_progress', overlay="{:0>2d}%".format(process_value))
+            else:
+                # 关闭进度条
+                dpg.configure_item("video_progress_bar", show=False)
         # 更新项目
         update_project_by_json(res_project, {
             "video_fps": video_fps,
@@ -102,19 +114,31 @@ def video2picture(sender, app_data, user_data):
         })
 
 
-
-def Progress_Bar2(path,frame):
-    print('进入进度条线程')
-    local_frames=0
-    while local_frames < frame:
-        local_frames = len(os.listdir(path))#获得本地帧数目
-        # print("local_frames:",local_frames)
-        pornum = round((local_frames/frame),4)*100   #当前图片/所有帧数
-        # print('pornum:',pornum)
-        res = str(pornum)+'%'
-        dpg.configure_item('vid_to_png_progress',overlay=str(res))
-    dpg.configure_item("video_progress_bar",show=False)
-
+# d、场景检测 假设全自动 **
+def divide_scenes_callback(sender, app_data, user_data):
+    res_project = query_project_by_name(user_data)
+    scene_frame_indexs = find_scene_frames(res_project.video_path)
+    print(scene_frame_indexs)
+    res_shortcuts = query_shortcut_by_project_id(res_project.id)
+    for i, frame_index in enumerate(scene_frame_indexs):
+        frame_min_index = 1
+        frame_max_index = frame_index
+        if i > 0:
+            frame_min_index = scene_frame_indexs[i-1] + 1
+        create_shortcut_by_json({
+            "name": f"{res_project.name}_{len(res_shortcuts) + i}",
+            "project_id": res_project.id,
+            "frame_min_index": frame_min_index,
+            "frame_max_index": frame_max_index,
+        })
+        # 最后一个片段
+        if i == len(scene_frame_indexs) - 1:
+            create_shortcut_by_json({
+            "name": f"{res_project.name}_{len(res_shortcuts) + i + 1}",
+            "project_id": res_project.id,
+            "frame_min_index": frame_max_index + 1,
+            "frame_max_index": res_project.frame_max_index,
+        })
 
 
 #导入图像回调
@@ -124,7 +148,7 @@ def image_file_select_callback(sender, app_data,user_data):
 
 
 # 3、选择视频文件创建项目并打开项目明细窗口
-def select_video(sender, app_data, user_data):
+def select_video_callback(sender, app_data, user_data):
     project_name = dpg.get_value('input_name_widget')
     project_path = os.path.join(os.getcwd(), project_name)
     frame_path = os.path.join(project_path, "frame")
@@ -141,9 +165,12 @@ def select_video(sender, app_data, user_data):
 
 
 # 2、点击创建项目按钮, 如项目名称符合要求则打开文件选择框
-def create_project(sender, app_data, user_data):
+def create_project_callback(sender, app_data, user_data):
+    print(sender, app_data, user_data)
     check_result = dpg.get_value("check_name_widget")
     project_name = dpg.get_value('input_name_widget')
+    print(check_result,project_name)
+
     if len(check_result) == 0 and len(project_name) != 0:
         # 打开文件选择框, 选择视频文件
         dpg.configure_item("select_video_widget", show=True)
@@ -151,22 +178,23 @@ def create_project(sender, app_data, user_data):
 
 # 1、创建分镜头任务检查输入的项目名称是否存在
 def check_shortcut(sender, app_data, user_data):
+    print('分镜头检测app_data值',app_data)
     if query_shortcut_by_name_and_pid(app_data,user_data):
         dpg.set_value("child_video_name", "项目名已存在!")
     elif len(app_data) == 0:
         dpg.set_value("child_video_name", "项目名不能为空!")
     else:
-        dpg.set_value("child_video_name", "允许创建")
+        dpg.set_value("child_video_name", "")
 
 
 # 1、创建主项目检查输入的项目名称是否存在
-def check_project(sender, app_data, user_data):
+def check_project_callback(sender, app_data, user_data):
     if query_project_by_name(app_data):
         dpg.set_value(user_data, "项目名已存在!")
     elif len(app_data) == 0:
         dpg.set_value(user_data, "项目名不能为空!")
     else:
-        dpg.set_value(user_data, "允许创建")
+        dpg.set_value(user_data, "")
 
 
 # s、刷新首页窗口中的表单数据
@@ -211,21 +239,21 @@ def delete_task_files(file_path):
 
 # 创建首页窗口
 def system_setup_window():
-    with dpg.window(label="Project Management", width=800, height=600, id='project_management_window',no_move=True,no_resize=True):
+    with dpg.window(label="Project Management", width=1100, height=800, id='project_management_window',no_resize=True,no_close=True,no_collapse=True):
         # 绑定字体
         dpg.bind_font(default_font)
         # 回调函数 检测项目名称是否存在
         dpg.add_text("新建项目名称")
         with dpg.group(horizontal=True):
             dpg.add_input_text(
-                tag="input_name_widget",callback=check_project, user_data="check_name_widget",hint="输入名称")
-            dpg.add_button(label="创建项目", callback=create_project)
+                tag="input_name_widget",callback=check_project_callback, user_data="check_name_widget",hint="输入名称")
+            dpg.add_button(label="创建项目", callback=create_project_callback)
         with dpg.group(horizontal=True):
             dpg.add_text('检查结果:')
-            dpg.add_text("空", tag="check_name_widget")
+            dpg.add_text("", tag="check_name_widget")
         with dpg.file_dialog(
             directory_selector=False, show=False,
-            callback=select_video, tag="select_video_widget"):
+            callback=select_video_callback, tag="select_video_widget"):
             dpg.add_file_extension(".mp4", color=(0, 255, 0, 255))
             dpg.add_file_extension(".ts", color=(0, 255, 0, 255))
             dpg.add_file_extension(".avi", color=(0, 255, 0, 255))
@@ -238,7 +266,7 @@ def system_setup_window():
             dpg.add_table_column(label="项目列表")
             dpg.add_table_column(label="删除")
             # 最大10行, 分页未做 **
-            for i in range(10):
+            for i in range(20):
                 with dpg.table_row(height=30):
                     dpg.add_button(label="", tag=f"show_project_widget{i}",
                         callback=jump_detail_window)
@@ -246,42 +274,135 @@ def system_setup_window():
                         user_data=f"show_project_widget{i}", callback=delete_one_project)
 
 
+def test(sender, app_data, user_data):
+    width, height, _, data = dpg.load_image("sources/photos/1.png")
+    dpg.set_value("texture_tag1", data)
+    dpg.set_value("texture_tag2", data)
+    dpg.set_value("texture_tag3", data)
+
 # 项目明细窗口/视频数据窗口
 def project_detail_Window(project_name):
     # 临时隐藏project_management_window
     dpg.configure_item("project_management_window", show=False)
-    with dpg.window(label=f"Project <{project_name}> Details",width=1150, height=800, tag='video_tools_window',no_resize=True,min_size=[1150,800]):
-        # 绑定中文字体
-        dpg.bind_font(default_font)
+    # 绑定中文字体
+    dpg.bind_font(default_font)
+    with dpg.window(label=f'当前任务{project_name}',width=300, height=800,tag='issue',no_close=True):
+        
+        with dpg.table(tag='issue_list',header_row=True, resizable=True, borders_outerH=True,borders_innerV=True, borders_innerH=True, borders_outerV=True,policy=dpg.mvTable_SizingStretchProp):
+            dpg.add_table_column(label='ID')
+            dpg.add_table_column(label='名称')
+            dpg.add_table_column(label='操作')
+            # while(dpg.is_dearpygui_running):
+            pro_id = query_project_by_name(project_name)
+            issue_list = query_shortcut_by_project_id(pro_id.id)
+            print(issue_list)
+            
+    with dpg.window(no_close=True,label=f"Project <{project_name}> Details",width=1150, height=800, tag='video_tools_window',min_size=[1150,800],pos=[301,0]):
         with dpg.menu_bar():
+            with dpg.menu(label="系统"):
+                dpg.add_menu_item(label="退出程序", callback=lambda:exit())
+                dpg.add_menu_item(label="全屏/退出全屏", callback=lambda:dpg.toggle_viewport_fullscreen())
             with dpg.menu(label="工具"):
-                dpg.add_menu_item(label="视频转序列", callback=video2picture, user_data=project_name)
-                # dpg.add_menu_item(label="分镜头检测", callback=_log) # 记得实现 没有实现，机器分镜头功能
-               
+                dpg.add_menu_item(label="视频转图像序列", callback=video_convert_picture_callback,
+                                    user_data=project_name)
+                # 分镜头需要单独一个页面
+                dpg.add_menu_item(label="分镜头检测", callback=divide_scenes_callback,
+                                    user_data=project_name)
             with dpg.menu(label="导出"):
-                dpg.add_menu_item(label="导出完整视频",callback=export)
+                dpg.add_menu_item(label="导出上色视频",callback=export)
         with dpg.group(horizontal=True):
-            with dpg.child_window(width=565,height=270):
-                dpg.add_text('空格暂停，按Q退出')
-                dpg.add_button(label='查看视频',user_data=project_name,callback=video_play)
-                # 记得实现 已经实现比较拉跨，等待以后有好的视频插件
+            width, height, _, data = dpg.load_image(r"data\1.png")
+            father_window_width = dpg.get_item_width("video_tools_window")
+            image_render_width = int(father_window_width / 3.1)
+            image_render_height = int(image_render_width / 16 * 9)
 
-            #提交手动分镜头表单    
-            with dpg.child_window(width=565,height=270):
+            with dpg.child_window(
+                width=image_render_width,
+                height=image_render_height+200,
+                no_scrollbar=True):
+                with dpg.group(horizontal=True):
+                    dpg.add_text('帧ID:')
+                    dpg.add_text('',tag='frame_num1')
+                    dpg.add_text('帧状态:')
+                    dpg.add_text('普通帧',tag='frame1_box_state',color=(255,255,255))   
+                dpg.add_separator() # 线     
+                with dpg.texture_registry(show=False):
+                    dpg.add_dynamic_texture(width, height, data, tag="texture_tag1")
+                image1 = dpg.add_image("texture_tag1", width=image_render_width, height=image_render_height+170)
+                with dpg.popup(image1, tag="__demo_popup1"):
+                        # dpg.add_selectable(label="设置参考帧", callback=lambda: dpg.configure_item('frame1_box_state',default_value='参考帧',color=(249,1,4)))
+                        # dpg.add_separator() # 线
+                        dpg.add_selectable(label="设置关键帧", callback=lambda: dpg.configure_item('frame1_box_state',default_value='关键帧',color=(49,249,26)))
+                        dpg.add_separator() # 线
+                        dpg.add_selectable(label="设置普通帧",  callback=lambda: dpg.configure_item('frame1_box_state',default_value='普通帧',color=(255,255,255)))
+                        
+            with dpg.child_window(
+                width=image_render_width,
+                height=image_render_height+200,
+                no_scrollbar=True):
+                with dpg.group(horizontal=True):
+                    dpg.add_text('帧ID:')
+                    dpg.add_text('',tag='frame_num2')
+                    dpg.add_text('帧状态:')
+                    dpg.add_text('普通帧',tag='frame2_box_state',color=(255,255,255))   
+                dpg.add_separator() # 线     
+                with dpg.texture_registry(show=False):
+                    dpg.add_dynamic_texture(width, height, data, tag="texture_tag2")
+                image2 =dpg.add_image("texture_tag2", width=image_render_width, height=image_render_height+170)
+                with dpg.popup(image2, tag="__demo_popup2"):
+                        # dpg.add_selectable(label="设置参考帧", callback=lambda: dpg.configure_item('frame2_box_state',default_value='参考帧',color=(249,1,4)))
+                        # dpg.add_separator() # 线
+                        dpg.add_selectable(label="设置关键帧",  callback=lambda: dpg.configure_item('frame2_box_state',default_value='关键帧',color=(49,249,26)))
+                        dpg.add_separator() # 线
+                        dpg.add_selectable(label="设置普通帧",  callback=lambda: dpg.configure_item('frame2_box_state',default_value='普通帧',color=(255,255,255)))
+                        
+            with dpg.child_window(
+                width=image_render_width,
+                height=image_render_height+200,
+                no_scrollbar=True):
+                with dpg.group(horizontal=True):
+                    dpg.add_text('帧ID:')
+                    dpg.add_text('',tag='frame_num3')
+                    dpg.add_text('帧状态:')
+                    dpg.add_text('普通帧',tag='frame3_box_state',color=(255,255,255))  
+                dpg.add_separator() # 线  
+                with dpg.texture_registry(show=False):
+                    dpg.add_dynamic_texture(width, height, data, tag="texture_tag3")
+                image3=dpg.add_image("texture_tag3", width=image_render_width, height=image_render_height+170)
+                with dpg.popup(image3, tag="__demo_popup3"):
+                    # dpg.add_selectable(label="设置参考帧", callback=lambda: dpg.configure_item('frame3_box_state',default_value='参考帧',color=(249,1,4)))
+                    # dpg.add_separator() # 线
+                    dpg.add_selectable(label="设置关键帧", callback=lambda: dpg.configure_item('frame3_box_state',default_value='关键帧',color=(49,249,26)))
+                    dpg.add_separator() # 线
+                    dpg.add_selectable(label="设置普通帧", callback=lambda: dpg.configure_item('frame3_box_state',default_value='普通帧',color=(255,255,255)))
+                
+
+        with dpg.child_window(height=100,autosize_x=True):
+            with dpg.plot(label="Drag Lines/Points", height=100, width=-1,tag='image_tag',no_title=True):       
+                dpg.add_plot_legend()
+                dpg.add_plot_axis(dpg.mvXAxis, label="帧数")
+                dpg.set_axis_limits(dpg.last_item(), 0, pro_id.frame_max_index)
+                dpg.add_drag_line(label="dline", color=[255, 0, 0, 255], callback=test)
+                dpg.add_plot_axis(dpg.mvYAxis, label="",no_gridlines=True,no_tick_labels=True,no_tick_marks=True)
+                dpg.set_axis_limits(dpg.last_item(), 0, 1)
+             
+
+        #提交手动分镜头表单    
+        with dpg.tab_bar():
+            with dpg.tab(label='创建/修改任务'):
                 info = query_project_by_name(project_name)
-                dpg.add_text('手动分镜头表单')
                 with dpg.group(horizontal=True):
                     dpg.add_text('总帧数:')
                     dpg.add_text(default_value=info.frame_max_index,user_data=info.frame_max_index,tag='v_frame_all')
                 with dpg.group(horizontal=True):
                     dpg.add_text('片段名称:')
-                    dpg.add_input_text(tag='child_v_name',callback=check_shortcut,hint='片段1',width=150,user_data=info.id)
+                    dpg.add_input_text(tag='child_v_name',callback=check_shortcut,hint='例如:xxx片段1',width=150,user_data=info.id)
                     dpg.add_text('未检测',tag='child_video_name')
                 with dpg.group(horizontal=True):
                     dpg.add_text('输入开始帧(数字)')
-                    dpg.add_input_text(tag="child_frame_min_index",width=70,callback=_log)
+                    dpg.add_input_int(tag="child_frame_min_index",default_value=1,min_value=1,callback=_log,min_clamped=True,width=150,max_clamped=True,max_value=pro_id.frame_max_index)
                     dpg.add_text('输入结束帧(数字)')
-                    dpg.add_input_text(tag="child_frame_max_index",width=70,callback=_log)
+                    dpg.add_input_int(tag="child_frame_max_index",default_value=1,min_value=1,callback=_log,min_clamped=True,width=150,max_clamped=True,max_value=pro_id.frame_max_index)
                 with dpg.group(horizontal=True):
                     dpg.add_text('是否胶质:')
                     dpg.add_radio_button(("是","否"), default_value="是",tag='colloidal',callback=_log, horizontal=True)
@@ -291,7 +412,7 @@ def project_detail_Window(project_name):
                     dpg.add_radio_button([0,1,2,3,4,5], default_value=0,tag='noise_level',callback=_log, horizontal=True)
                 with dpg.group(horizontal=True):
                     dpg.add_text('输入参考帧(数字)')
-                    dpg.add_input_text(tag="refer_frame_indexs",width=70,callback=_log)
+                    dpg.add_input_int(tag="refer_frame_indexs",default_value=1,min_value=1,callback=_log,min_clamped=True,width=150,max_clamped=True,max_value=pro_id.frame_max_index)
                 with dpg.group(horizontal=True):
                     dpg.add_text('点击上传参考帧')
                     dpg.add_button(label="上传",callback=lambda: dpg.show_item("file_dialog_tag"))
@@ -299,42 +420,20 @@ def project_detail_Window(project_name):
                     dpg.add_text('空',tag='file_path_name')    
                 with dpg.group(horizontal=True):
                     dpg.add_button(label='提交任务',tag='child_video_sub',callback=child_video_sub,user_data=info.id)
-
-
-        with dpg.child_window(height=450,autosize_x=True):
-            dpg.add_text("图像")
-            with dpg.plot(label="Drag Lines/Points", height=400, width=-1,tag='image_tag'):
-                dpg.add_plot_legend()
-                dpg.add_plot_axis(dpg.mvXAxis, label="x")
-                dpg.add_drag_line(label="dline", color=[255, 0, 0, 255],callback=_log)
-                project_info = query_project_by_name(project_name)
-                dpg.add_plot_axis(dpg.mvYAxis, label="y")
-                # dpg.load_image()
-                # for i in os.listdir(project_info.frame_path):
-                    # print(i)
-                    # dpg.load_image ('image_tag')
-                    # print(project_info.frame_path)
+                    # dpg.add_button(label='任务表',tag='child_issue_table',callback=shortcut_issue_table,user_data=info.id)
+            with dpg.tab(label='查看视频'):
+                dpg.add_text('空格暂停，按Q退出')
+                dpg.add_button(label='查看视频',user_data=project_name,callback=video_play)
 
         #等待界面
         with dpg.window(label='Video Progress Bar', show=False, no_title_bar=True,id='video_progress_bar', pos=[250,150], no_resize=True,width=320,height=70):
             dpg.add_text('视频转序列,请耐心等待')
-            dpg.add_progress_bar(label="Progress Bar",default_value=0.00 ,overlay="0.00%", tag='vid_to_png_progress')
+            dpg.add_progress_bar(label="Progress Bar", default_value=0.0,overlay="00%", tag='video_cur_progress',width=310)
         #上传页面
         with dpg.file_dialog(directory_selector=False, show=False, callback=image_file_select_callback, tag="file_dialog_tag"):
             dpg.add_file_extension(".png", color=(255, 255, 0, 255))
             dpg.add_file_extension(".jpg", color=(255, 0, 255, 255))
 
-        # with dpg.child_window(label='child_frame_image',height=300,parent='video_tools_window'):
-        #     dpg.add_text("分镜头图像") 
-        #     with dpg.child_window(height=300,parent='video_tools_window'):
-        #         with dpg.group(horizontal=True):
-        #             dpg.add_text('选择处理分镜头')
-        #             dpg.add_combo([1],height_mode=dpg.mvComboHeight_Small )
-               
-        #         with dpg.group(horizontal=True):
-        #             dpg.add_text('确认是否满足上色条件')
-        #             dpg.add_radio_button(("是","否"), default_value=0,callback=_log, horizontal=True,id='colorize_state')
-        #         dpg.add_button(label='提交',id='final_submit',callback=save_shortcut)
 
 
 #提交分镜头任务保存数据
@@ -342,12 +441,19 @@ def child_video_sub(send,app_data,user_data):
     print(send,app_data,user_data)
     frame = dpg.get_value("v_frame_all")
     name = dpg.get_value("child_v_name")
+    if name=='':
+        prompt_box('name_error','片段名不能是空 \n请重新填写片段名项')    
+        return 
     project_id = user_data
     frame_min_index = dpg.get_value("child_frame_min_index")
     frame_max_index = dpg.get_value("child_frame_max_index")
-    if frame_min_index>=frame_max_index:
-        prompt_box('frame_indexs_errot','开始帧必须小于结束帧，请重新填写参考帧项')    
-        exit()
+    print(frame_max_index,frame)
+    if int(frame_max_index) >int(frame):
+        prompt_box('frame_max_indexs_errot','结束帧必须小于总帧数，\n请重新填写结束帧项')    
+        return
+    if int(frame_min_index)>=int(frame_max_index):
+        prompt_box('frame_indexs_errot','开始帧必须小于结束帧，\n请重新填写开始帧项')    
+        return
     res_colloidal =  dpg.get_value("colloidal")
     if res_colloidal=='是':
         colloidal =1
@@ -355,9 +461,6 @@ def child_video_sub(send,app_data,user_data):
         colloidal = 0
     noise_level = dpg.get_value("noise_level")
     refer_frame_indexs = dpg.get_value("refer_frame_indexs")
-    if refer_frame_indexs > frame:
-        prompt_box('refer_frame_indexs_errot','超出总帧数，请重新填写参考帧项')    
-        exit()
     colorize_state = 1
     create_shortcut_by_json({
         "name": name,
@@ -370,9 +473,9 @@ def child_video_sub(send,app_data,user_data):
         "colorize_state":colorize_state
     })
     dpg.set_value("child_v_name",'')
-    dpg.set_value("child_frame_min_index",'')
-    dpg.set_value("child_frame_max_index",'')
-    dpg.set_value("refer_frame_indexs",'')
+    dpg.set_value("child_frame_min_index",1)
+    dpg.set_value("child_frame_max_index",1)
+    dpg.set_value("refer_frame_indexs",1)
 
 
 def nothing(emp):
@@ -418,6 +521,8 @@ def video_play(send,app_data,user_data):
         counter += 1  # 计算帧数
         if (time.time() - start_time) != 0:  # 实时显示帧数
             cv2.putText(frame, "FPS {0}".format(float('%.1f' % (counter / (time.time() - start_time)))), (500, 50),cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255),3)
+            if frame is None:
+                break
             src = cv2.resize(frame, (frame_width // 2, frame_height // 2), interpolation=cv2.INTER_CUBIC)  # 窗口大小
             cv2.imshow('frame', src)
             # print("FPS: ", counter / (time.time() - start_time))
@@ -468,6 +573,26 @@ def Synthetic_video():
             dpg.add_button(label='关闭',callback=lambda:dpg.configure_item("Synthetic_video",show=False))
 
 
+#分镜头任务表
+def shortcut_issue_table(send,app_data,user_data):
+    open_table(user_data)
+
+def open_table(pid):
+    with dpg.window(label='任务表',width=400,height=600):
+        with dpg.group(horizontal=True):
+            res = query_shortcut_by_project_id(pid)
+            dpg.add_text('1/1',tag='xuhao')
+            dpg.add_button(label="Button", callback=_log, arrow=True, direction=dpg.mvDir_Left)
+            dpg.add_button(label="Button", callback=_log, arrow=True, direction=dpg.mvDir_Right)
+        with dpg.table(
+            tag="issue_table", header_row=True, resizable=True, borders_outerH=True,
+            borders_innerV=True, borders_innerH=True, borders_outerV=True,
+            policy=dpg.mvTable_SizingStretchProp
+            ):
+            dpg.add_table_column(label='片段名称')
+            dpg.add_table_column(label='操作')
+
+
 
 if __name__=='__main__':
     
@@ -478,7 +603,7 @@ if __name__=='__main__':
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Default)
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Chinese_Simplified_Common)
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Chinese_Full)
-    dpg.create_viewport(title='Colorization_sys Window', width=1230, height=900,min_width=1200)
+    dpg.create_viewport(title='Colorization_sys Window', width=1530, height=900,min_width=1200)
     dpg.setup_dearpygui()
     # 上色平台功能入口
     system_setup_window()

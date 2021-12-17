@@ -41,7 +41,7 @@ CREATE TABLE `shortcut` (
     `colloidal` tinyint(1) DEFAULT 0 COMMENT '是否胶质(0:否 1:是)',
     `noise_level` tinyint(1) DEFAULT 0 COMMENT '噪音等级(0 1 2 3 4 5)',
     `refer_frame_indexs` smallint(6) zerofill DEFAULT NULL COMMENT '参考帧索引, <,>分割',
-    `colorize_state` tinyint(1) DEFAULT 0 COMMENT '是否完成上色(0:否 1:是)',
+    `colorize_state` tinyint(1) DEFAULT 0 COMMENT '是否确认上色(0:否 1:是)',
     `create_time` datetime NOT NULL DEFAULT current_timestamp() COMMENT '创建时间',
     `update_time` datetime DEFAULT NULL COMMENT '更新时间',
 	PRIMARY KEY (`id`)
