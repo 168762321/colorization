@@ -116,9 +116,9 @@ def video_convert_picture_callback(sender, app_data, user_data):
 
 # d、场景检测 假设全自动 **
 def divide_scenes_callback(sender, app_data, user_data):
+    issue_table_win(user_data)
     res_project = query_project_by_name(user_data)
     scene_frame_indexs = find_scene_frames(res_project.video_path)
-    print(scene_frame_indexs)
     res_shortcuts = query_shortcut_by_project_id(res_project.id)
     for i, frame_index in enumerate(scene_frame_indexs):
         frame_min_index = 1
@@ -139,7 +139,7 @@ def divide_scenes_callback(sender, app_data, user_data):
             "frame_min_index": frame_max_index + 1,
             "frame_max_index": res_project.frame_max_index,
         })
-
+    
 
 #导入图像回调
 def image_file_select_callback(sender, app_data,user_data):
@@ -280,28 +280,38 @@ def test(sender, app_data, user_data):
     dpg.set_value("texture_tag2", data)
     dpg.set_value("texture_tag3", data)
 
+
+#分镜头任务列表
+def issue_table_win(project_name):
+    with dpg.window(label=f'任务:{project_name}',width=300, height=800,tag='issue',no_close=True):
+        with dpg.table(tag='issue_list',header_row=True, resizable=True, borders_outerH=True,borders_innerV=True, borders_innerH=True, borders_outerV=True,policy=dpg.mvTable_SizingStretchProp):
+            dpg.add_table_column(label='ID')
+            dpg.add_table_column(label='名称')
+            dpg.add_table_column(label='操作')
+            dpg.add_table_column(label='上色状态')
+            # while(dpg.is_dearpygui_running):
+            while(dpg.is_dearpygui_running()):
+                time.sleep(3)
+                res= query_project_by_name(project_name)
+                issue_list = query_shortcut_by_project_id(res.id)
+            for i in issue_list:
+                with dpg.table_row(height=30):
+                        dpg.add_text(i.id)
+                        dpg.add_button(label=i.name,
+                            callback=_log)
+                        dpg.add_button(label="查看",
+                            callback=_log)
+
 # 项目明细窗口/视频数据窗口
 def project_detail_Window(project_name):
     # 临时隐藏project_management_window
     dpg.configure_item("project_management_window", show=False)
     # 绑定中文字体
     dpg.bind_font(default_font)
-    with dpg.window(label=f'当前任务{project_name}',width=300, height=800,tag='issue',no_close=True):
-        
-        with dpg.table(tag='issue_list',header_row=True, resizable=True, borders_outerH=True,borders_innerV=True, borders_innerH=True, borders_outerV=True,policy=dpg.mvTable_SizingStretchProp):
-            dpg.add_table_column(label='ID')
-            dpg.add_table_column(label='名称')
-            dpg.add_table_column(label='操作')
-            # while(dpg.is_dearpygui_running):
-            pro_id = query_project_by_name(project_name)
-            issue_list = query_shortcut_by_project_id(pro_id.id)
-            print(issue_list)
+    
             
     with dpg.window(no_close=True,label=f"Project <{project_name}> Details",width=1150, height=800, tag='video_tools_window',min_size=[1150,800],pos=[301,0]):
         with dpg.menu_bar():
-            with dpg.menu(label="系统"):
-                dpg.add_menu_item(label="退出程序", callback=lambda:exit())
-                dpg.add_menu_item(label="全屏/退出全屏", callback=lambda:dpg.toggle_viewport_fullscreen())
             with dpg.menu(label="工具"):
                 dpg.add_menu_item(label="视频转图像序列", callback=video_convert_picture_callback,
                                     user_data=project_name)
@@ -310,6 +320,10 @@ def project_detail_Window(project_name):
                                     user_data=project_name)
             with dpg.menu(label="导出"):
                 dpg.add_menu_item(label="导出上色视频",callback=export)
+            with dpg.menu(label="系统"):
+                dpg.add_menu_item(label="退出程序", callback=lambda:exit())
+                dpg.add_menu_item(label="全屏/退出全屏", callback=lambda:dpg.toggle_viewport_fullscreen())
+        pro = query_project_by_name(project_name)
         with dpg.group(horizontal=True):
             width, height, _, data = dpg.load_image(r"data\1.png")
             father_window_width = dpg.get_item_width("video_tools_window")
@@ -381,7 +395,7 @@ def project_detail_Window(project_name):
             with dpg.plot(label="Drag Lines/Points", height=100, width=-1,tag='image_tag',no_title=True):       
                 dpg.add_plot_legend()
                 dpg.add_plot_axis(dpg.mvXAxis, label="帧数")
-                dpg.set_axis_limits(dpg.last_item(), 0, pro_id.frame_max_index)
+                dpg.set_axis_limits(dpg.last_item(), 0, pro.frame_max_index)
                 dpg.add_drag_line(label="dline", color=[255, 0, 0, 255], callback=test)
                 dpg.add_plot_axis(dpg.mvYAxis, label="",no_gridlines=True,no_tick_labels=True,no_tick_marks=True)
                 dpg.set_axis_limits(dpg.last_item(), 0, 1)
@@ -400,9 +414,9 @@ def project_detail_Window(project_name):
                     dpg.add_text('未检测',tag='child_video_name')
                 with dpg.group(horizontal=True):
                     dpg.add_text('输入开始帧(数字)')
-                    dpg.add_input_int(tag="child_frame_min_index",default_value=1,min_value=1,callback=_log,min_clamped=True,width=150,max_clamped=True,max_value=pro_id.frame_max_index)
+                    dpg.add_input_int(tag="child_frame_min_index",default_value=1,min_value=1,callback=_log,min_clamped=True,width=150,max_clamped=True,max_value=pro.frame_max_index)
                     dpg.add_text('输入结束帧(数字)')
-                    dpg.add_input_int(tag="child_frame_max_index",default_value=1,min_value=1,callback=_log,min_clamped=True,width=150,max_clamped=True,max_value=pro_id.frame_max_index)
+                    dpg.add_input_int(tag="child_frame_max_index",default_value=1,min_value=1,callback=_log,min_clamped=True,width=150,max_clamped=True,max_value=pro.frame_max_index)
                 with dpg.group(horizontal=True):
                     dpg.add_text('是否胶质:')
                     dpg.add_radio_button(("是","否"), default_value="是",tag='colloidal',callback=_log, horizontal=True)
@@ -412,7 +426,7 @@ def project_detail_Window(project_name):
                     dpg.add_radio_button([0,1,2,3,4,5], default_value=0,tag='noise_level',callback=_log, horizontal=True)
                 with dpg.group(horizontal=True):
                     dpg.add_text('输入参考帧(数字)')
-                    dpg.add_input_int(tag="refer_frame_indexs",default_value=1,min_value=1,callback=_log,min_clamped=True,width=150,max_clamped=True,max_value=pro_id.frame_max_index)
+                    dpg.add_input_int(tag="refer_frame_indexs",default_value=1,min_value=1,callback=_log,min_clamped=True,width=150,max_clamped=True,max_value=pro.frame_max_index)
                 with dpg.group(horizontal=True):
                     dpg.add_text('点击上传参考帧')
                     dpg.add_button(label="上传",callback=lambda: dpg.show_item("file_dialog_tag"))
