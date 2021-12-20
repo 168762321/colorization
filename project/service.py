@@ -29,7 +29,7 @@ def query_project_by_name(name):
     return session.query(Project).filter(
         Project.name==name).first()
 
-
+# 查询分镜头单个数据 名字，pid
 def query_shortcut_by_name_and_pid(name,pid):
     return session.query(Shortcut).filter(
         Shortcut.name==name,Shortcut.project_id==pid).first()
@@ -64,3 +64,9 @@ def query_shortcut_by_project_id(project_id):
         Shortcut.project_id==project_id).all()
 
 
+# 删除分镜头数据，查询 名称 ,pid
+def delete_shortcut_by_name_id(name,pid):
+    q = query_shortcut_by_name_and_pid(name,pid)
+    if q:
+        session.delete(q)
+        session.commit()
