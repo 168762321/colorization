@@ -33,7 +33,7 @@ class Shortcut(Base):
     frame_max_index = Column(Integer)
     colloidal = Column(Integer, default=0)
     noise_level = Column(Integer, default=0)
-    refer_frame_indexs = Column(Integer)
+    refer_frame_indexs = Column(Integer, default=1)
     colorize_state = Column(Integer, default=0)
     create_time = Column(DateTime)
     update_time = Column(DateTime)
