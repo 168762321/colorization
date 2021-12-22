@@ -2,7 +2,7 @@ from sqlalchemy.orm import sessionmaker
 
 from config import engine
 from model import Project, Shortcut, set_field
-
+from datetime import datetime
 
 Session = sessionmaker(bind = engine)
 session = Session()
@@ -70,3 +70,33 @@ def delete_shortcut_by_name_id(name,pid):
     if q:
         session.delete(q)
         session.commit()
+
+
+
+'''
+    修改shortcut保存内容
+    "name": name,
+    "frame_min_index": frame_min_index,
+    "frame_max_index": frame_max_index,
+    "colloidal":res_colloidal,
+    "noise_level":noise_level,
+    "refer_frame_indexs":refer_frame_indexs,
+    "colorize_state":colorize_state
+'''
+def update_shortcut_by_id(id,dict):
+    print(id,dict)
+    info =  session.query(Shortcut).filter(Shortcut.id==id).first()
+    info.name = dict['name']
+    info.frame_min_index = dict['frame_min_index']
+    info.frame_max_index = dict['frame_max_index']
+    info.colloidal = dict['colloidal']
+    info.refer_frame_indexs = dict['refer_frame_indexs']
+    info.colorize_state = dict['colorize_state']
+    info.update_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+'''
+    返回全部关键帧列表
+'''
+def keyframe_from_shortcut_by_pid(pid):
+    return session.query(Shortcut).filter(Shortcut.project_id==pid).all()
