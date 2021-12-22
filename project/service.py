@@ -93,7 +93,7 @@ def update_shortcut_by_id(id,dict):
     info.refer_frame_indexs = dict['refer_frame_indexs']
     info.colorize_state = dict['colorize_state']
     info.update_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
+    session.commit()
 
 '''
     返回全部关键帧列表
