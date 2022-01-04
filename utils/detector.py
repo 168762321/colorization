@@ -3,8 +3,6 @@ from scenedetect import VideoManager
 from scenedetect import SceneManager
 # For content-aware scene detection:
 from scenedetect.detectors import ContentDetector
-# from scenedetect.video_splitter import split_video_ffmpeg
-# from scenedetect.scene_manager import save_images
 
 
 def find_scene_frames(video_path, threshold=30.0):
