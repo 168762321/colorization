@@ -1,7 +1,7 @@
 import time
 from cv2 import imread, imwrite, IMREAD_GRAYSCALE
 import random as rand
-from gaussiannoiser import noiser
+from .gaussiannoiser import noiser
 from skimage.io import imread as skread
 from skimage.io import imsave
 import numpy as np

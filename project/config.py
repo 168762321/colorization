@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 
 
-user_pwd = "root:root"
+user_pwd = "root:123456"
 host_port = "127.0.0.1:3306"
 db_name = "colorization_sys"
 engine = create_engine(
