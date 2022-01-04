@@ -5,5 +5,3 @@
 ### ~ 注意不要安装opencv-python
 ### ~ 上色模型放在checkpoints/video_moredata_l1中
 ### ~ vgg模型放在data中
-## 代办事项
-前后端分离
