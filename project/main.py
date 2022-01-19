@@ -28,7 +28,7 @@ from utils.base import create_folder
 from utils.detector import find_scene_frames
 
 
-#关键帧列表
+#分割点列表
 key_frame_list =[]
 #分镜头字典
 divide_scenes = {}
@@ -59,6 +59,19 @@ def _help(message):
     t = dpg.add_text("(?)", color=[200, 255, 0])
     with dpg.tooltip(t):
         dpg.add_text(message)
+
+
+
+def _hsv_to_rgb(h, s, v):
+    if s == 0.0: return (v, v, v)
+    i = int(h*6.)
+    f = (h*6.)-i; p,q,t = v*(1.-s), v*(1.-s*f), v*(1.-s*(1.-f)); i%=6
+    if i == 0: return (255*v, 255*t, 255*p)
+    if i == 1: return (255*q, 255*v, 255*p)
+    if i == 2: return (255*p, 255*v, 255*t)
+    if i == 3: return (255*p, 255*q, 255*v)
+    if i == 4: return (255*t, 255*p, 255*v)
+    if i == 5: return (255*v, 255*p, 255*q)
 
 
 # ffmpeg解视频信息
@@ -128,21 +141,21 @@ def video_convert_picture_callback(sender, app_data, user_data):
                 if os.path.exists(img1_path):
                     width, height, _, data = dpg.load_image(img1_path)
                     dpg.set_value("texture_tag1", data)
-                    dpg.set_value('frame1_box_state','普通帧')
+                    dpg.set_value('frame1_box_state','正常')
                     dpg.set_value('frame_num1',1)
 
                 img2_path =os.path.join(os.path.join(frame_path,'thumbnail'),'2.png') 
                 if os.path.exists(img2_path):
                     width, height, _, data = dpg.load_image(img2_path)
                     dpg.set_value("texture_tag2", data)
-                    dpg.set_value('frame2_box_state','普通帧')
+                    dpg.set_value('frame2_box_state','正常')
                     dpg.set_value('frame_num2',2)
 
                 img3_path =os.path.join(os.path.join(frame_path,'thumbnail'),'3.png') 
                 if os.path.exists(img3_path):
                     width, height, _, data = dpg.load_image(img3_path)
                     dpg.set_value("texture_tag3", data)
-                    dpg.set_value('frame3_box_state','普通帧')
+                    dpg.set_value('frame3_box_state','正常')
                     dpg.set_value('frame_num3',3)
         
         # 更新项目
@@ -431,7 +444,7 @@ def open_work_window(send,app_data,user_data):
         project_name = user_data[2]
         project_res = query_project_by_name(project_name)
         # dpg.set_value('shortcut_name',shortcut_name)
-        dpg.set_value('frame_all',project_res.frame_max_index)
+        # dpg.set_value('frame_all',project_res.frame_max_index)
         dpg.set_value('star_frame_min_index',divide_scenes[index]['frame_min_index'])
         dpg.set_value('end_frame_max_index',divide_scenes[index]['frame_max_index'])
         dpg.set_value('divide_name',shortcut_name)
@@ -450,25 +463,25 @@ def open_work_window(send,app_data,user_data):
                 width, height, _, data = dpg.load_image(img1_path)
                 dpg.set_value("texture_tag1", data)
                 if int(divide_scenes[index]['frame_min_index']) in key_frame_list:
-                    dpg.set_value('frame1_box_state','关键帧')
+                    dpg.set_value('frame1_box_state','切割点')
                 else:
-                    dpg.set_value('frame1_box_state','普通帧')
+                    dpg.set_value('frame1_box_state','正常')
 
             if os.path.exists(img2_path):
                 width, height, _, data = dpg.load_image(img2_path)
                 dpg.set_value("texture_tag2", data)
                 if int(divide_scenes[index]['frame_min_index'])+1 in key_frame_list:
-                    dpg.set_value('frame2_box_state','关键帧')
+                    dpg.set_value('frame2_box_state','切割点')
                 else:
-                    dpg.set_value('frame2_box_state','普通帧')
+                    dpg.set_value('frame2_box_state','正常')
 
             if os.path.exists(img3_path):
                 width, height, _, data = dpg.load_image(img3_path)
                 dpg.set_value("texture_tag3", data)
                 if int(divide_scenes[index]['frame_min_index'])+2 in key_frame_list:
-                    dpg.set_value('frame3_box_state','关键帧')
+                    dpg.set_value('frame3_box_state','切割点')
                 else:
-                    dpg.set_value('frame3_box_state','普通帧')
+                    dpg.set_value('frame3_box_state','正常')
 
             dpg.configure_item('dline',default_value=int(divide_scenes[index]['frame_min_index']))
         else:
@@ -497,33 +510,33 @@ def change_image(sender, app_data, user_data):
                 width, height, _, data = dpg.load_image(img1_path)
                 dpg.set_value("texture_tag1", data)
                 if dl in key_frame_list:
-                    dpg.set_value('frame1_box_state','关键帧')
+                    dpg.set_value('frame1_box_state','切割点')
                 else:
-                    dpg.set_value('frame1_box_state','普通帧')
+                    dpg.set_value('frame1_box_state','正常')
 
             if os.path.exists(img2_path):
                 width, height, _, data = dpg.load_image(img2_path)
                 dpg.set_value("texture_tag2", data)
                 if frame_num2 in key_frame_list:
-                    dpg.set_value('frame2_box_state','关键帧')
+                    dpg.set_value('frame2_box_state','切割点')
                 else:
-                    dpg.set_value('frame2_box_state','普通帧')
+                    dpg.set_value('frame2_box_state','正常')
 
             if os.path.exists(img3_path):
                 width, height, _, data = dpg.load_image(img3_path)
                 dpg.set_value("texture_tag3", data)
                 if frame_num3 in key_frame_list:
-                    dpg.set_value('frame3_box_state','关键帧')
+                    dpg.set_value('frame3_box_state','切割点')
                 else:
-                    dpg.set_value('frame3_box_state','普通帧')
+                    dpg.set_value('frame3_box_state','正常')
         else:
             pass
 
 
-# 添加选中关键帧
+# 添加选中分割点
 def add_key_frames(sender,app_data,user_data):
     res = dpg.get_value(user_data[0])
-    dpg.configure_item(user_data[1],default_value='关键帧')
+    dpg.configure_item(user_data[1],default_value='切割点')
     if res:
         if int(res) not in key_frame_list:
             key_frame_list.append(int(res))
@@ -532,10 +545,10 @@ def add_key_frames(sender,app_data,user_data):
             refresh_shortcut_list()
 
 
-# 删除选中关键帧
+# 删除选中分割点
 def del_key_frames(sender,app_data,user_data):
     res = dpg.get_value(user_data[0])
-    dpg.configure_item(user_data[1],default_value='普通帧')
+    dpg.configure_item(user_data[1],default_value='正常')
     if res:
         if int(res) in key_frame_list: 
             key_frame_list.remove(int(res))
@@ -555,7 +568,6 @@ def project_detail_Window(project_name):
         dpg.add_text(project_info.id,tag='p_id',show=False)#隐藏Pid，后面上传回调会用
         with dpg.menu_bar():
             with dpg.menu(label="系统"):
-                # dpg.add_menu_item(label='返回首页',callback=set_window_show)
                 dpg.add_menu_item(label="全屏/退出全屏", callback=lambda:dpg.toggle_viewport_fullscreen())
                 dpg.add_menu_item(label="退出程序", callback=lambda:exit())
             with dpg.menu(label="工具"):
@@ -566,6 +578,10 @@ def project_detail_Window(project_name):
             father_window_width = dpg.get_item_width("project_detail_Window")
             image_render_width = int(father_window_width / 3.1)
             image_render_height = int(image_render_width / 10 * 9)
+            with dpg.texture_registry(show=False):
+                dpg.add_dynamic_texture(width, height, [0]*width*height*4, tag="texture_tag1")
+                dpg.add_dynamic_texture(width, height, [0]*width*height*4, tag="texture_tag2")
+                dpg.add_dynamic_texture(width, height, [0]*width*height*4, tag="texture_tag3")
 
             # 图像框1
             with dpg.child_window(
@@ -578,15 +594,12 @@ def project_detail_Window(project_name):
                     dpg.add_text('帧状态:')
                     dpg.add_text('',tag='frame1_box_state')   
                 dpg.add_separator() # 线 
-                with dpg.texture_registry(show=False):
-                    dpg.add_dynamic_texture(width, height, [0]*width*height*4, tag="texture_tag1")
-                    dpg.add_dynamic_texture(width, height, [0]*width*height*4, tag="texture_tag2")
-                    dpg.add_dynamic_texture(width, height, [0]*width*height*4, tag="texture_tag3")
+               
                 image1 = dpg.add_image("texture_tag1", width=image_render_width, height=image_render_height)
                 with dpg.popup(image1, tag="__demo_popup1"):
-                        dpg.add_selectable(label="设置关键帧" , callback=add_key_frames , user_data=['frame_num1','frame1_box_state',project_info])
+                        dpg.add_selectable(label="设置分割点" , callback=add_key_frames , user_data=['frame_num1','frame1_box_state',project_info])
                         dpg.add_separator() # 线
-                        dpg.add_selectable(label="设置普通帧",  callback=del_key_frames , user_data=['frame_num1','frame1_box_state',project_info])
+                        dpg.add_selectable(label="设置正常",  callback=del_key_frames , user_data=['frame_num1','frame1_box_state',project_info])
 
             # 图像框2
             with dpg.child_window(
@@ -601,9 +614,9 @@ def project_detail_Window(project_name):
                 dpg.add_separator() # 线     
                 image2 =dpg.add_image("texture_tag2", width=image_render_width, height=image_render_height)
                 with dpg.popup(image2, tag="__demo_popup2"):
-                        dpg.add_selectable(label="设置关键帧",  callback=add_key_frames , user_data=['frame_num2','frame2_box_state',project_info])
+                        dpg.add_selectable(label="设置分割点",  callback=add_key_frames , user_data=['frame_num2','frame2_box_state',project_info])
                         dpg.add_separator() # 线
-                        dpg.add_selectable(label="设置普通帧",  callback=del_key_frames , user_data=['frame_num2','frame2_box_state',project_info])
+                        dpg.add_selectable(label="设置正常",  callback=del_key_frames , user_data=['frame_num2','frame2_box_state',project_info])
 
             # 图像框3
             with dpg.child_window(
@@ -618,9 +631,9 @@ def project_detail_Window(project_name):
                 dpg.add_separator() # 线  
                 image3=dpg.add_image("texture_tag3", width=image_render_width, height=image_render_height)
                 with dpg.popup(image3, tag="__demo_popup3"):
-                    dpg.add_selectable(label="设置关键帧", callback=add_key_frames , user_data=['frame_num3','frame3_box_state',project_info])
+                    dpg.add_selectable(label="设置分割点", callback=add_key_frames , user_data=['frame_num3','frame3_box_state',project_info])
                     dpg.add_separator() # 线
-                    dpg.add_selectable(label="设置普通帧", callback=del_key_frames , user_data=['frame_num3','frame3_box_state',project_info])
+                    dpg.add_selectable(label="设置正常", callback=del_key_frames , user_data=['frame_num3','frame3_box_state',project_info])
         # 移动线条窗口
         with dpg.child_window(height=100,autosize_x=True):
             with dpg.plot(label="Drag Lines/Points", height=100, width=-1,tag='image_tag',no_title=True):       
@@ -635,98 +648,184 @@ def project_detail_Window(project_name):
                 if os.path.exists(img1_path):
                     width, height, _, data = dpg.load_image(img1_path)
                     dpg.set_value("texture_tag1", data)
-                    dpg.set_value('frame1_box_state','普通帧')
+                    dpg.set_value('frame1_box_state','正常')
                     dpg.set_value('frame_num1',1)
 
                 img2_path =os.path.join(os.path.join(frame_path,'thumbnail'),'2.png') 
                 if os.path.exists(img2_path):
                     width, height, _, data = dpg.load_image(img2_path)
                     dpg.set_value("texture_tag2", data)
-                    dpg.set_value('frame2_box_state','普通帧')
+                    dpg.set_value('frame2_box_state','正常')
                     dpg.set_value('frame_num2',2)
 
                 img3_path =os.path.join(os.path.join(frame_path,'thumbnail'),'3.png') 
                 if os.path.exists(img3_path):
                     width, height, _, data = dpg.load_image(img3_path)
                     dpg.set_value("texture_tag3", data)
-                    dpg.set_value('frame3_box_state','普通帧')
+                    dpg.set_value('frame3_box_state','正常')
                     dpg.set_value('frame_num3',3)
         #提交手动分镜头表单    
         with dpg.tab_bar():
-            with dpg.tab(label='设置基础信息'):
-                with dpg.group(horizontal=True):
-                    dpg.add_text('总帧数:')
-                    dpg.add_text(default_value=project_info.frame_max_index,tag='frame_all')
-                with dpg.group(horizontal=True):
-                    dpg.add_text('胶质等级:')
-                    _help("有选1，无选0。")
-                    dpg.add_radio_button([0,1], default_value=0,tag='colloidal',callback=_log, horizontal=True)
-                with dpg.group(horizontal=True):
-                    dpg.add_text('噪音等级:')
-                    _help("等级越高，噪音越大。")
-                    dpg.add_radio_button([0,1,2,3,4,5], default_value=0,tag='noise_level',callback=_log, horizontal=True)    
-                dpg.add_separator() # 线     
-                with dpg.group(horizontal=True):
-                    dpg.add_button(label='保存',tag='table_sub',callback=save_cut_sub,user_data=[project_info.id,project_info.frame_max_index])
-            with dpg.tab(label='更多操作'):
-                dpg.add_text('查看原始视频(提示:空格暂停，按Q退出)')
-                with dpg.group(horizontal=True):
-                    dpg.add_button(label='点击查看原始视频',user_data=project_name,callback=video_play)
-                dpg.add_text('下载参考帧(原始画质)')
-                with dpg.group(horizontal=True):
-                    dpg.add_input_int(tag="download_frame_indexs",default_value=1,min_value=1,callback=_log,
-                                            min_clamped=True,width=150,max_clamped=True,max_value=project_info.frame_max_index)
-                    dpg.add_button(label='点击下载', tag='download_frame_button',
-                                    user_data=['upload_path'], callback=lambda:dpg.show_item('download_frame_callback'))
+            
             with dpg.tab(label='设置上色任务'):
                 with dpg.group(horizontal=True):
-                    dpg.add_text('当前分镜头名称:')
+                    dpg.add_text('帮助:先点击工具->视频转换图像序列.按照下方步骤完成上色任务',color=(255,255,0))
+
+                with dpg.group(horizontal=True):
+                    dpg.add_text('上色片段名称:')
                     dpg.add_text('', tag='divide_name')
+                
                 with dpg.group(horizontal=True):
                     dpg.add_text('开始帧:')
                     dpg.add_text('NA',tag="star_frame_min_index")
                     dpg.add_text('结束帧:')
                     dpg.add_text('NA',tag="end_frame_max_index")
-                with dpg.group(horizontal=True):
-                    dpg.add_text('上传彩色参考帧')
-                    dpg.add_button(label='点击上传', tag='upload_reference_frame_button',
-                                    user_data=['upload_path'], callback=lambda:dpg.show_item('upload_reference_frame'))
 
+                dpg.add_separator(indent=1)
+                
+                with dpg.group(horizontal=True):
+                    dpg.add_text('第一步:',color=(255,255,0))
+                    dpg.add_text('保存分镜头数据')
+                    _help('请先分割视频片')
+                    with dpg.theme(tag="table_sub"):
+                        with dpg.theme_component(dpg.mvButton):
+                            dpg.add_theme_color(dpg.mvThemeCol_Button, _hsv_to_rgb(7.0, 0.6, 0.6))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, _hsv_to_rgb(8.0, 0.8, 0.8))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _hsv_to_rgb(9.0, 0.7, 0.7))
+                            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5)
+                            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 3, 3)
+                    dpg.add_button(label='点击保存',callback=save_cut_sub,user_data=[project_info.id,project_info.frame_max_index])        
+                    dpg.bind_item_theme(dpg.last_item(), "table_sub")
+
+                   
+                with dpg.group(horizontal=True):
+                    dpg.add_text('第二步:',color=(255,255,0))
+                    dpg.add_text('导出参考帧(原始画质)')
+                    _help('请通过第三方软件,\n'
+                          '简单涂抹上色即可.')
+                    dpg.add_input_int(tag="download_frame_indexs",default_value=1,min_value=1,callback=_log,
+                                            min_clamped=True,width=150,max_clamped=True,max_value=project_info.frame_max_index)
+                    with dpg.theme(tag="download_frame_button"):
+                        with dpg.theme_component(dpg.mvButton):
+                            dpg.add_theme_color(dpg.mvThemeCol_Button, _hsv_to_rgb(7.0, 0.6, 0.6))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, _hsv_to_rgb(8.0, 0.8, 0.8))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _hsv_to_rgb(9.0, 0.7, 0.7))
+                            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5)
+                            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 3, 3)
+                    dpg.add_button(label='点击导出',user_data=['upload_path'], callback=lambda:dpg.show_item('download_frame_callback')) 
+                    dpg.bind_item_theme(dpg.last_item(), "download_frame_button")
+
+
+                with dpg.group(horizontal=True):
+                    dpg.add_text('第三步:',color=(255,255,0))
+                    dpg.add_text('导入彩色参考帧')
+                    _help('若最终效果不满意,\n'
+                          '可重复导入再次上色.')
+                    with dpg.theme(tag="upload_reference_frame_button"):
+                        with dpg.theme_component(dpg.mvButton):
+                            dpg.add_theme_color(dpg.mvThemeCol_Button, _hsv_to_rgb(7.0, 0.6, 0.6))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, _hsv_to_rgb(8.0, 0.8, 0.8))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _hsv_to_rgb(9.0, 0.7, 0.7))
+                            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5)
+                            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 3, 3)
+                    dpg.add_button(label='点击导入',user_data=['upload_path'], callback=lambda:dpg.show_item('upload_reference_frame'))
+                    dpg.bind_item_theme(dpg.last_item(), "upload_reference_frame_button")
                     dpg.add_text('路径:')
                     dpg.add_text('NA', tag='upload_path')
                 with dpg.group(horizontal=True):
+                    dpg.add_text('第四步:',color=(255,255,0))
                     dpg.add_text('设置输出路径')
-                    dpg.add_button(label='点击设置', tag='output_reference_frame_button',
-                                    user_data=['output_path'], callback=lambda:dpg.show_item('output_reference_frame'))
-
+                    _help('上色结果保存路径')
+                    with dpg.theme(tag="output_reference_frame_button"):
+                        with dpg.theme_component(dpg.mvButton):
+                            dpg.add_theme_color(dpg.mvThemeCol_Button, _hsv_to_rgb(7.0, 0.6, 0.6))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, _hsv_to_rgb(8.0, 0.8, 0.8))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _hsv_to_rgb(9.0, 0.7, 0.7))
+                            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5)
+                            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 3, 3)
+                    dpg.add_button(label='点击设置',user_data=['output_path'], callback=lambda:dpg.show_item('output_reference_frame'))
+                    dpg.bind_item_theme(dpg.last_item(), "output_reference_frame_button")
                     dpg.add_text('路径:')
                     dpg.add_text('NA', tag='output_path')
+                
+
                 with dpg.group(horizontal=True):
-                    dpg.add_button(label='提交',tag='path_table_sub',callback=save_path_sub)
-                # with dpg.group():
-                #     with dpg.table(tag='colorization_table', header_row=True, resizable=True, 
-                #                    borders_outerH=True, borders_innerV=True, borders_innerH=True,  
-                #                    borders_outerV=True):
-                #         dpg.add_table_column(label='视频输出路径')
-                #         dpg.add_table_column(label='操作')
-                        # for i in range(64):
-                        #     dpg.add_text(label='',tag=f"colorize_refer_frame_path{i}")
-                        #     dpg.add_button(label='',tag=f"del_colorize_refer_frame{i}",callback=_log)
+                    dpg.add_text('第五步:',color=(255,255,0))
+                    with dpg.theme(tag="path_table_sub"):
+                        with dpg.theme_component(dpg.mvButton):
+                            dpg.add_theme_color(dpg.mvThemeCol_Button, _hsv_to_rgb(7.0, 0.6, 0.6))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, _hsv_to_rgb(8.0, 0.8, 0.8))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _hsv_to_rgb(9.0, 0.7, 0.7))
+                            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5)
+                            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 3, 3)
+                    dpg.add_button(label='点击提交',callback=save_path_sub)        
+                    dpg.bind_item_theme(dpg.last_item(), "path_table_sub")
+            with dpg.tab(label='更多操作'): 
+                with dpg.group(horizontal=True):
+                    dpg.add_text('查看原始视频(提示:空格暂停，按Q退出)',color=(255,255,0))
+                    with dpg.theme(tag="video_play_but"):
+                        with dpg.theme_component(dpg.mvButton):
+                            dpg.add_theme_color(dpg.mvThemeCol_Button, _hsv_to_rgb(7.0, 0.6, 0.6))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, _hsv_to_rgb(8.0, 0.8, 0.8))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _hsv_to_rgb(9.0, 0.7, 0.7))
+                            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5)
+                            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 3, 3)
+                    dpg.add_button(label='原始视频',user_data=project_name,callback=video_play)
+                    dpg.bind_item_theme(dpg.last_item(), "video_play_but")
+                dpg.add_separator(indent=1)
+                
+                with dpg.group(horizontal=True):
+                    dpg.add_text('简单画板',color=(255,255,0))
+                    dpg.add_input_int(tag="draw_frame_input",default_value=1,min_value=1,callback=_log,
+                                            min_clamped=True,width=150,max_clamped=True,max_value=project_info.frame_max_index)
+                    with dpg.theme(tag="draw_play_but"):
+                        with dpg.theme_component(dpg.mvButton):
+                            dpg.add_theme_color(dpg.mvThemeCol_Button, _hsv_to_rgb(7.0, 0.6, 0.6))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, _hsv_to_rgb(8.0, 0.8, 0.8))
+                            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _hsv_to_rgb(9.0, 0.7, 0.7))
+                            dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5)
+                            dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 3, 3)
+                    dpg.add_button(label='打开画板',callback=draw_frame_callback, user_data=[project_info.frame_path])
+                    dpg.bind_item_theme(dpg.last_item(), "draw_play_but")
 
         #解析进度条
-        with dpg.window(label='Video Progress Bar', show=False, no_title_bar=True, tag='video_progress_bar', pos=[250,150], no_resize=True, width=320, height=70):
+        with dpg.window(label='Video Progress Bar', show=False, no_title_bar=True, tag='video_progress_bar', 
+                        pos=[250,150], no_resize=True, width=320, height=70):
             dpg.add_text('视频转序列,请耐心等待')
             dpg.add_progress_bar(label="Progress Bar", default_value=0.0, overlay="00%", tag='video_cur_progress', width=310)
         #上传彩色参考帧
-        with dpg.file_dialog(directory_selector=False, show=False, callback=upload_reference_frame_callback, tag="upload_reference_frame"):
+        with dpg.file_dialog(directory_selector=False, show=False, callback=upload_reference_frame_callback, 
+                            tag="upload_reference_frame"):
             dpg.add_file_extension(".png", color=(255, 255, 0, 255))
             dpg.add_file_extension(".jpg", color=(255, 0, 255, 255))
         #设置输出地址
-        with dpg.file_dialog(directory_selector=False, show=False, callback=output_reference_frame_callback, tag="output_reference_frame"):
+        with dpg.file_dialog(directory_selector=False, show=False, callback=output_reference_frame_callback, 
+                            tag="output_reference_frame"):
             dpg.add_file_extension("", color=(255, 255, 255, 255))
         #下载原始图帧
-        with dpg.file_dialog(directory_selector=False, show=False, callback=download_frame_callback, tag="download_frame_callback", user_data=[project_info.frame_path]):
+        with dpg.file_dialog(directory_selector=False, show=False, callback=download_frame_callback, 
+                            tag="download_frame_callback", user_data=[project_info.frame_path]):
             dpg.add_file_extension("", color=(255, 255, 255, 255))
+        #画画
+        with dpg.window(label='画板',tag='drawing',show=False,no_collapse=True):
+            dpg.add_color_picker((255, 0, 255, 255), label="", no_side_preview=True, 
+                                alpha_bar=False, width=200,callback=_log, 
+                                display_hsv=False, display_hex=False, no_alpha=True,
+                                display_rgb=True)
+            dpg.add_text(tag='drawing_path',show=False)
+            with dpg.child_window('child_drawing', autosize_x=True, pos=(0,275)):
+                width, height, _, data = dpg.load_image()
+                dpg.set_value("texture_tag", data)
+ 
+
+
+# 画画回调，打开画板
+def draw_frame_callback(sender,app_data,user_data):
+    dpg.show_item('drawing')
+    frame = dpg.get_value('draw_frame_input')
+    path = user_data[0]
+    draw_path = os.path.join(path,str(frame)+'.png')
+    dpg.set_value('drawing_path', draw_path)
 
 
 
